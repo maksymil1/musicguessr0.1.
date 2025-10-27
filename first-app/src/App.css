@@ -19,5 +19,11 @@ body {
   align-items: center;
   flex-wrap: wrap;
   width: 100%;
-  height: max;;
+  height: 100vh;
+}
+
+.btn{
+    width: 30vw;
+    height: 10vh;
+    font-size: 2rem;
 }
