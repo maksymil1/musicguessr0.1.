@@ -1,5 +1,8 @@
 //import ListGroup from "./components/ListGroup";
+import { Alert } from "./components/Alert";
 import { Button } from "./components/Button";
+import { useState } from "react";
+import "./App.css";
 
 function App() {
   // let elements = ["Jan", "Andrzej", "Kasia", "Marta", "Zofia"];
@@ -25,10 +28,17 @@ function App() {
   //     </Alert>
   //   </div>
   // );
+  const [showAlert, setShowAlert] = useState(false);
 
+  const handleButtonClick = () => {
+    setShowAlert(true);
+  };
   return (
     <div>
-      <Button onClick={() => console.log("kliknieto")}>Nacisnij mnie!</Button>
+      <Button onClick={handleButtonClick}>Nacisnij mnie!</Button>
+      {showAlert && (
+        <Alert onClose={() => setShowAlert(false)}>kliknieto!</Alert>
+      )}
     </div>
   );
 }
