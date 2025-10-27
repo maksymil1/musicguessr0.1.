@@ -19,6 +19,7 @@ export const Button = ({
       type="button"
       className={"btn btn-" + colour + " " + klasa}
       onClick={onClick}
+      // target="_blank"
     >
       {children}
     </button>
