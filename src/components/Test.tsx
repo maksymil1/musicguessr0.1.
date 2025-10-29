@@ -18,11 +18,8 @@ function Test() {
         <button className="main-button friends-button">FRIENDS</button>
         <button className="main-button stats-button">STATS</button>
       </div>
-      <div className="speakers-container">
-        <div className="speaker left-speaker"></div>
-        <div className="speaker right-speaker"></div>
-      </div>
     </div>
+    //test
   );
 }
 
