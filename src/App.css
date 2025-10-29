@@ -27,3 +27,168 @@ body {
     height: 10vh;
     font-size: 2rem;
 }
+
+
+.App {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 100vh;
+  background: linear-gradient(to right, #ffb347, #ff6b6b, #c445c4, #8e44ad); /* Gradient jak na obrazku */
+  color: white;
+  font-family: Arial, sans-serif;
+  padding: 20px;
+  box-sizing: border-box;
+  overflow: hidden; /* Aby głośniki nie wychodziły poza obszar */
+  position: relative;
+}
+
+.header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+}
+
+.menu-icon, .profile-icon {
+  font-size: 2em;
+  cursor: pointer;
+}
+
+.title {
+  font-family: 'Comic Sans MS', cursive; /* Lub inna font, która wygląda na rysunkową */
+  font-size: 5em;
+  font-weight: bold;
+  margin-top: 50px;
+  margin-bottom: 50px;
+  text-shadow: 
+    -2px -2px 0 #000,  
+    2px -2px 0 #000,
+    -2px 2px 0 #000,
+    2px 2px 0 #000; /* Czarny obrys */
+  position: relative;
+  z-index: 2; /* Nad głośnikami */
+}
+
+.buttons-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 50px;
+  position: relative;
+  z-index: 2;
+}
+
+.main-button {
+  background-color: #f0f0f0; /* Jasne tło przycisków */
+  color: #333;
+  border: 2px solid #333; /* Czarna ramka */
+  padding: 15px 40px;
+  font-size: 1.5em;
+  font-weight: bold;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 5px 5px 0px #222; /* Cień dający efekt 3D */
+  transition: all 0.2s ease;
+}
+
+.main-button:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 3px 3px 0px #222;
+}
+
+/* Stylizacja głośników - użyjemy pseudoelementów lub svg, aby je narysować */
+.speakers-container {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end; /* Pozycjonowanie głośników na dole */
+  pointer-events: none; /* Aby nie blokowały klikania przycisków */
+  z-index: 1; /* Pod przyciskami i tytułem */
+}
+
+.speaker {
+  width: 150px; /* Rozmiar głośnika */
+  height: 200px;
+  position: relative;
+  top: 50%; /* Przesuń w dół */
+  transform: translateY(50%); /* Dostosuj pozycję pionową */
+}
+
+.left-speaker {
+  left: 5%; /* Odległość od lewej krawędzi */
+}
+
+.right-speaker {
+  right: 5%; /* Odległość od prawej krawędzi */
+  transform: translateY(50%) scaleX(-1); /* Odwróć, aby był symetryczny */
+}
+
+/* Możesz narysować głośniki za pomocą SVG lub bardziej skomplikowanych CSS, 
+   ale dla prostoty możemy użyć ikony lub gotowego obrazka */
+.speaker::before {
+  content: url('https://upload.wikimedia.org/wikipedia/commons/e/ea/Speaker_icon.svg'); /* Przykładowa ikona głośnika */
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: invert(1); /* Odwróć kolory, jeśli SVG jest czarne */
+  position: absolute;
+}
+
+/* Dodajemy nutki */
+.speaker::after {
+  content: "♫";
+  font-size: 3em;
+  position: absolute;
+  color: #333;
+  animation: musicNote 1.5s infinite ease-in-out;
+}
+
+.left-speaker::after {
+  top: -30px;
+  left: 50px;
+  transform: rotate(-20deg);
+}
+
+.right-speaker::after {
+  top: -30px;
+  right: 50px;
+  transform: rotate(20deg);
+}
+
+@keyframes musicNote {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  50% { transform: translateY(-20px) scale(1.1); opacity: 0.8; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* Dopasowanie nutek do stylu rysunkowego */
+.music-note-left, .music-note-right {
+  position: absolute;
+  font-size: 2.5em;
+  color: black;
+  z-index: 2;
+  font-family: 'Comic Sans MS', cursive;
+  animation: pulse 1s infinite alternate;
+}
+
+.music-note-left {
+  top: 40%;
+  left: 20%;
+  transform: rotate(-15deg);
+}
+
+.music-note-right {
+  top: 40%;
+  right: 20%;
+  transform: rotate(15deg);
+}
+
+@keyframes pulse {
+  from { transform: scale(1); }
+  to { transform: scale(1.1); }
+}
