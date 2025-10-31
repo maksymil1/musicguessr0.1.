@@ -2,14 +2,14 @@
   background-color: white;
 }
 
-body {
+/* body {
   background-image: url('./photos/guitar.jpg');
   background-repeat: no-repeat;
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
-  background-color: #87ceeb; /* Fallback sky blue */
-}
+  background-color: #87ceeb; 
+} */
 
 .strona1 {
   display: flex;

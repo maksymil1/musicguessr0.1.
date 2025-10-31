@@ -1,6 +1,4 @@
-//import ListGroup from "./components/ListGroup";
-//import { FirstPage } from "./components/FirstPage";
-import Test from "./components/Test";
+import QuizPlayer from "./components/QuizPlayer";
 import "./App.css";
 
 function App() {
@@ -9,7 +7,8 @@ function App() {
   return (
     <div>
       {/* <FirstPage opcje={opcje} onClick={() => console.log(opcje)} /> */}
-      <Test />
+      {/* <Test />*/}
+      <QuizPlayer />
     </div>
   );
 }
