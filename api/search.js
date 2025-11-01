@@ -7,7 +7,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "SOUNDCLOUD_CLIENT_ID missing on server" });
   }
 
-  const url = `https://api-v2.soundcloud.com/search/sets?q=${encodeURIComponent(q)}&client_id=${CLIENT_ID}&limit=50`;
+  const url = `https://api-v1.soundcloud.com/search/sets?q=${encodeURIComponent(q)}&client_id=${CLIENT_ID}&limit=50`;
 
   try {
     const r = await fetch(url);
