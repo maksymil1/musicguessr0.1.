@@ -17,14 +17,10 @@ export default function Home({ onNavigate }: HomeProps) {
 
   return (
     <div className="home-container">
-      {/* Głośniki */}
-      <img src="/assets/speaker-left.png" alt="Left speaker" className="speaker left" />
-      <img src="/assets/speaker-right.png" alt="Right speaker" className="speaker right" />
-
-      {/* Logo */}
+      {/* Logo /}
       <img src="/assets/logo.png" alt="MusicGuessr logo" className="logo" />
 
-      {/* Przyciski */}
+      {/ Przyciski */}
       <div className="buttons">
         {buttons.map((btn, index) => (
           <div
@@ -52,16 +48,6 @@ export default function Home({ onNavigate }: HomeProps) {
             </AnimatePresence>
           </div>
         ))}
-      </div>
-
-      {/* Profil */}
-      <img src="/assets/profile-icon.png" alt="Profile" className="profile-icon" />
-
-      {/* Menu hamburger */}
-      <div className="hamburger-menu">
-        <div />
-        <div />
-        <div />
       </div>
     </div>
   );
