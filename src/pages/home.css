@@ -1,6 +1,14 @@
 .master{
   height: 100vh;
-  background: linear-gradient(to top right, #facc15, #3b82f6, #ec4899);
+  /* background: linear-gradient(to top right, #facc15, #3b82f6, #ec4899); */
+  background: conic-gradient(
+  from 0deg,
+  #3A86FF 20%,
+  #8338EC 40%,
+  #FF006E 60%,
+  #FB5607 80%,
+  #FFBE0B 100%
+);
   overflow: hidden;
 }
 
