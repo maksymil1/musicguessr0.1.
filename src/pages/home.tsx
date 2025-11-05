@@ -1,28 +1,26 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
-import "./home.css";
+import "./Home.css";
 
-export default function Home() {
+interface HomeProps {
+  onNavigate: (screen: "home" | "play" | "friends" | "stats") => void;
+}
+
+export default function Home({ onNavigate }: HomeProps) {
   const [hovered, setHovered] = useState<number | null>(null);
-  const navigate = useNavigate();
 
   const buttons = [
-    { label: "PLAY", path: "/play" },
-    { label: "FRIENDS", path: "/friends" },
-    { label: "STATS", path: "/stats" },
-  ];
+    { label: "PLAY", screen: "play" },
+    { label: "FRIENDS", screen: "friends" },
+    { label: "STATS", screen: "stats" },
+  ] as const;
 
   return (
     <div className="home-container">
-      {/* Głośniki */}
-      <img src="/assets/speaker-left.png" alt="Left speaker" className="speaker left" />
-      <img src="/assets/speaker-right.png" alt="Right speaker" className="speaker right" />
-
-      {/* Logo */}
+      {/* Logo /}
       <img src="/assets/logo.png" alt="MusicGuessr logo" className="logo" />
 
-      {/* Przyciski */}
+      {/ Przyciski */}
       <div className="buttons">
         {buttons.map((btn, index) => (
           <div
@@ -31,7 +29,7 @@ export default function Home() {
             onMouseEnter={() => setHovered(index)}
             onMouseLeave={() => setHovered(null)}
           >
-            <button className="menu-button" onClick={() => navigate(btn.path)}>
+            <button className="menu-button" onClick={() => onNavigate(btn.screen)}>
               {btn.label}
             </button>
 
@@ -51,16 +49,5 @@ export default function Home() {
           </div>
         ))}
       </div>
-
-      {/* Profil */}
-      <img src="/assets/profile-icon.png" alt="Profile" className="profile-icon" />
-
-      {/* Menu hamburger */}
-      <div className="hamburger-menu">
-        <div />
-        <div />
-        <div />
-      </div>
     </div>
   );
-}
