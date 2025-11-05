@@ -1,36 +1,68 @@
-.home-container {
-  position: relative;
+.master{
   height: 100vh;
+  background: linear-gradient(to top right, #facc15, #3b82f6, #ec4899);
+  overflow: hidden;
+}
+
+.home-container {
+  /* position: relative; */
+  height: 80vh;
   width: 100%;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: linear-gradient(to top right, #facc15, #3b82f6, #ec4899);
+  justify-content: flex-start;
+  
+  padding-top: 24px;
 }
 
 /* Logo */
 .logo {
-  width: 280px;
+  width: 50%;
+  margin: 0 0 40px;
+  align-self: center; 
   margin-bottom: 40px;
   filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
 }
 
-/* Głośniki */
-.speaker {
+.speakers-container {
   position: absolute;
-  bottom: 40px;
-  width: 150px;
-  opacity: 0.9;
+  left: 0;
+  right: 0;
+  bottom: 20px;           /* odległość od dołu */
+  display: flex;
+  justify-content: center; /* wyśrodkowane poziomo */
+  gap: 48px;              /* odstęp między głośnikami */
+  align-items: flex-end;  /* wyrównaj do dołu */
+  z-index: 3;
+  pointer-events: auto;
+  width: 100%;
+  padding: 0 16px;
+  box-sizing: border-box;
 }
 
-.speaker.left {
-  left: 40px;
+/* kontenery dla obrazków głośników */
+.speaker-left, .speaker-right {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  max-width: 220px;
+  width: 22%;
 }
 
-.speaker.right {
-  right: 40px;
+.speaker-left img,
+.speaker-right img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* responsywność - mniejsze ekrany -> mniejsze głośniki i mniej odstępu */
+@media (max-width: 768px) {
+  .logo { width: 70%; }
+  .speaker-left, .speaker-right { max-width: 140px; width: 28%; }
+  .speakers-container { gap: 24px; bottom: 12px; }
 }
 
 /* Przyciski */
@@ -65,11 +97,20 @@
 }
 
 /* Nutki */
-.note-icon {
+.note-icon-left {
   position: absolute;
   left: -40px;
-  top: 50%;
+  top: 0%;
   transform: translateY(-50%);
+  width: 32px;
+  height: auto;
+}
+
+.note-icon-right {
+  position: absolute;
+  right: -40px;
+  top: 0%;
+  transform: translateY(50%);
   width: 32px;
   height: auto;
 }
