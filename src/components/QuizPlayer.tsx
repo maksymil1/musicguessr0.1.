@@ -1,11 +1,19 @@
 import { useState } from "react";
 import AudioToggle from "./AudioToggle";
 
-// removed client-side CLIENT_ID
-
 export default function QuizPlayer() {
-  const [trackId, setTrackId] = useState<number | null>(null);
+  const [trackId, setTrackId] = useState<string | null>(null);
   const [playlistTitle, setPlaylistTitle] = useState<string>("");
+
+  const extractId = (item: any): string | null => {
+    if (!item) return null;
+    if (typeof item.id !== "undefined") return String(item.id);
+    if (typeof item.track_id !== "undefined") return String(item.track_id);
+    if (item.track && typeof item.track.id !== "undefined")
+      return String(item.track.id);
+    if (item.id_str) return String(item.id_str);
+    return null;
+  };
 
   const searchAndPickTrack = async (keyword: string) => {
     try {
@@ -19,43 +27,51 @@ export default function QuizPlayer() {
       const data = await res.json();
       console.log("search result:", data);
 
-      const collections = Array.isArray(data.collection)
-        ? data.collection
-        : Array.isArray(data)
-        ? (data as any)
-        : [];
+      // normalize possible shapes from SoundCloud proxy
+      const collections: any[] =
+        Array.isArray(data.collection) && data.collection.length
+          ? data.collection
+          : Array.isArray(data)
+          ? (data as any)
+          : Array.isArray(data?.results)
+          ? data.results
+          : Array.isArray(data?.collection?.items)
+          ? data.collection.items
+          : [];
 
       if (collections.length === 0) {
         alert("Nie znaleziono playlist.");
         return;
       }
 
-      const playlist = collections[0]; // lub losowa: collections[Math.floor(Math.random()*collections.length)]
-      setPlaylistTitle(playlist.title ?? "Brak tytułu");
+      const playlist = collections[0];
+      setPlaylistTitle(playlist.title ?? playlist.name ?? "Brak tytułu");
 
-      // track list może być w playlist.tracks lub playlist.items zależnie od odpowiedzi
       const tracks: any[] =
         Array.isArray(playlist.tracks) && playlist.tracks.length
           ? playlist.tracks
-          : Array.isArray((playlist as any).items) &&
-            (playlist as any).items.length
-          ? (playlist as any).items
+          : Array.isArray(playlist.items) && playlist.items.length
+          ? playlist.items
+          : Array.isArray(playlist.tracks?.collection) &&
+            playlist.tracks.collection.length
+          ? playlist.tracks.collection
           : [];
 
       if (tracks.length === 0) {
-        alert("Playlista nie zawiera utworów (brak tracks). Sprawdź konsolę.");
+        alert("Playlista nie zawiera utworów. Sprawdź konsolę.");
         console.log("playlist without tracks:", playlist);
         return;
       }
 
-      const random = tracks[Math.floor(Math.random() * tracks.length)];
-      if (!random || typeof random.id === "undefined") {
-        alert("Wybrany utwór nie ma id. Sprawdź konsolę.");
-        console.log("bad track item:", random);
+      const randomItem = tracks[Math.floor(Math.random() * tracks.length)];
+      const id = extractId(randomItem);
+      if (!id) {
+        alert("Wybrany utwór nie ma rozpoznawalnego id. Sprawdź konsolę.");
+        console.log("bad track item:", randomItem);
         return;
       }
 
-      setTrackId(Number(random.id));
+      setTrackId(id);
     } catch (err) {
       console.error("Network/error:", err);
       alert("Błąd sieciowy podczas wyszukiwania playlist.");
@@ -70,7 +86,7 @@ export default function QuizPlayer() {
 
       {playlistTitle && <div>Playlista: {playlistTitle}</div>}
 
-      {trackId && (
+      {trackId != null && (
         <AudioToggle
           title="Odtwórz losowy utwór"
           trackId={trackId}
