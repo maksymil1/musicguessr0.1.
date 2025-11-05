@@ -27,7 +27,6 @@ export default function QuizPlayer() {
       const data = await res.json();
       console.log("search result:", data);
 
-      // normalize possible shapes from SoundCloud proxy
       const collections: any[] =
         Array.isArray(data.collection) && data.collection.length
           ? data.collection
