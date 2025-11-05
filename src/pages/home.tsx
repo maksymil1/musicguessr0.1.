@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import "./Home.css";
+import "./home.css";
 
 interface HomeProps {
   onNavigate: (screen: "home" | "play" | "friends" | "stats") => void;
