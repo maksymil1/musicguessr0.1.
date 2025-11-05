@@ -15,14 +15,19 @@ export default function Home() {
 
   return (
     <div className="home-container">
-      {/* Głośniki */}
-      <img src="/assets/speaker-left.png" alt="Left speaker" className="speaker left" />
-      <img src="/assets/speaker-right.png" alt="Right speaker" className="speaker right" />
+      <img
+        src="/assets/speaker-left.png"
+        alt="Left speaker"
+        className="speaker left"
+      />
+      <img
+        src="/assets/speaker-right.png"
+        alt="Right speaker"
+        className="speaker right"
+      />
 
-      {/* Logo */}
       <img src="/assets/logo.png" alt="MusicGuessr logo" className="logo" />
 
-      {/* Przyciski */}
       <div className="buttons">
         {buttons.map((btn, index) => (
           <div
@@ -52,10 +57,12 @@ export default function Home() {
         ))}
       </div>
 
-      {/* Profil */}
-      <img src="/assets/profile-icon.png" alt="Profile" className="profile-icon" />
+      <img
+        src="/assets/profile-icon.png"
+        alt="Profile"
+        className="profile-icon"
+      />
 
-      {/* Menu hamburger */}
       <div className="hamburger-menu">
         <div />
         <div />

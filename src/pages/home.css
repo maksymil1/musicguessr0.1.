@@ -1,19 +1,28 @@
+@font-face {
+  font-family: "TheQuick";
+  src: url("/src/fonts/The-Quick.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+
 .master{
   height: 100vh;
   /* background: linear-gradient(to top right, #facc15, #3b82f6, #ec4899); */
-  background: conic-gradient(
+background: conic-gradient(
   from 0deg,
-  #3A86FF 20%,
-  #8338EC 40%,
-  #FF006E 60%,
-  #FB5607 80%,
-  #FFBE0B 100%
+  #3A86FF 0%,
+  #8338EC 20%,
+  #FF006E 40%,
+  #FB5607 60%,
+  #FFBE0B 80%,
+  #3A86FF 100%
 );
   overflow: hidden;
 }
 
 .home-container {
-  /* position: relative; */
   height: 80vh;
   width: 100%;
   overflow: hidden;
@@ -21,11 +30,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  
-  padding-top: 24px;
 }
 
-/* Logo */
 .logo {
   width: 50%;
   margin: 0 0 40px;
@@ -34,60 +40,88 @@
   filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
 }
 
+.home-container {
+  padding-bottom: clamp(160px, 18vh, 260px); 
+}
+
+
+:root {
+  --speaker-scale: 1.5;
+}
+
+
+
 .speakers-container {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 20px;           /* odległość od dołu */
+  bottom: 12px;
   display: flex;
-  justify-content: center; /* wyśrodkowane poziomo */
-  gap: 48px;              /* odstęp między głośnikami */
-  align-items: flex-end;  /* wyrównaj do dołu */
-  z-index: 3;
-  pointer-events: auto;
+  justify-content: center;
+  gap: clamp(24px, 4vw, 64px);
+  align-items: flex-end;
+  z-index: 2;
   width: 100%;
-  padding: 0 16px;
+  pointer-events: none;
+  padding-inline: clamp(12px, 4vw, 48px); 
   box-sizing: border-box;
+  overflow: hidden; 
 }
 
-/* kontenery dla obrazków głośników */
 .speaker-left, .speaker-right {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  max-width: 220px;
-  width: 22%;
+  width: clamp(120px, 20vw, 260px);
+  max-width: calc((100% - clamp(24px, 4vw, 64px)) / 2);
+  pointer-events: none;
 }
 
 .speaker-left img,
 .speaker-right img {
-  width: 100%;
+  max-width: 100%;
   height: auto;
   display: block;
+  transform-origin: center bottom;
+  transform: scale(var(--speaker-scale));
+  transition: transform 220ms ease;
+  pointer-events: none;
 }
 
-/* responsywność - mniejsze ekrany -> mniejsze głośniki i mniej odstępu */
-@media (max-width: 768px) {
-  .logo { width: 70%; }
-  .speaker-left, .speaker-right { max-width: 140px; width: 28%; }
-  .speakers-container { gap: 24px; bottom: 12px; }
+
+
+@media (min-width: 768px) {
+  :root { --speaker-scale: 1.05; }
+  .speakers-container { bottom: 18px; }
 }
 
-/* Przyciski */
+@media (min-width: 1024px) {
+  :root { --speaker-scale: 1.18; }
+  .speakers-container { bottom: 20px; gap: 48px; }
+}
+
+@media (min-width: 1400px) {
+  :root { --speaker-scale: 1.28; }
+  .speakers-container { bottom: 28px; gap: 64px; }
+}
+
 .buttons {
   display: flex;
   flex-direction: column;
   gap: 20px;
   align-items: center;
+  z-index: 3;
 }
 
 .button-wrapper {
   position: relative;
+
 }
 
 .menu-button {
-  font-family: monospace;
-  font-size: 1.5rem;
+
+  font-family: "TheQuick", sans-serif;
+  font-size: 2.5rem;
   letter-spacing: 3px;
   padding: 15px 50px;
   border: none;
@@ -104,7 +138,7 @@
   box-shadow: 0 6px 15px rgba(0, 0, 0, 0.35);
 }
 
-/* Nutki */
+
 .note-icon-left {
   position: absolute;
   left: -40px;
@@ -123,7 +157,6 @@
   height: auto;
 }
 
-/* Profil */
 .profile-icon {
   position: absolute;
   top: 20px;
@@ -139,7 +172,6 @@
   opacity: 1;
 }
 
-/* Hamburger */
 .hamburger-menu {
   position: absolute;
   top: 20px;

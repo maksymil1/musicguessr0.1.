@@ -15,10 +15,8 @@ export default function AudioToggle({
   const [playing, setPlaying] = useState(false);
   const stopTimeout = useRef<number | null>(null);
 
-  // update audio src when trackId changes
   useEffect(() => {
     const audio = audioRef.current;
-    // clear any existing stop timeout and pause current audio
     if (stopTimeout.current) {
       window.clearTimeout(stopTimeout.current);
       stopTimeout.current = null;
@@ -27,12 +25,9 @@ export default function AudioToggle({
       audio.pause();
       setPlaying(false);
       audio.src = `/api/stream/${encodeURIComponent(String(trackId))}`;
-      // reload so browser is aware of new src
       try {
         audio.load();
-      } catch {
-        // ignore load errors in some environments
-      }
+      } catch {}
     }
     return () => {
       if (stopTimeout.current) {
@@ -57,7 +52,6 @@ export default function AudioToggle({
     const audio = audioRef.current;
     if (!audio) return;
     try {
-      // play() returns a promise in modern browsers
       const p = audio.play();
       if (p && typeof p.then === "function") {
         await p;
@@ -65,13 +59,11 @@ export default function AudioToggle({
       setPlaying(true);
 
       if (autoStopSeconds && autoStopSeconds > 0) {
-        // set timeout to auto-stop
         stopTimeout.current = window.setTimeout(() => {
           doPause();
         }, autoStopSeconds * 1000);
       }
     } catch (err) {
-      // autoplay / permission error
       console.error("Audio play failed:", err);
       setPlaying(false);
     }
@@ -82,7 +74,6 @@ export default function AudioToggle({
     else doPlay();
   };
 
-  // clean up on unmount
   useEffect(() => {
     return () => {
       if (stopTimeout.current) {
