@@ -1,4 +1,3 @@
-// ...existing code...
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
 async function getFetch(): Promise<typeof fetch> {
