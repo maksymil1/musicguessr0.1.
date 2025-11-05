@@ -40,7 +40,7 @@ export default function Home({ onNavigate }: HomeProps) {
             <AnimatePresence>
               {hovered === index && (
                 <motion.img
-                  src="/assets/notes.png"
+                  src="/assets/nuta_left.png"
                   alt="notes"
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
