@@ -1,17 +1,19 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
 import "./Home.css";
 
-export default function Home() {
+interface HomeProps {
+  onNavigate: (screen: "home" | "play" | "friends" | "stats") => void;
+}
+
+export default function Home({ onNavigate }: HomeProps) {
   const [hovered, setHovered] = useState<number | null>(null);
-  const navigate = useNavigate();
 
   const buttons = [
-    { label: "PLAY", path: "/play" },
-    { label: "FRIENDS", path: "/friends" },
-    { label: "STATS", path: "/stats" },
-  ];
+    { label: "PLAY", screen: "play" },
+    { label: "FRIENDS", screen: "friends" },
+    { label: "STATS", screen: "stats" },
+  ]as const;
 
   return (
     <div className="home-container">
@@ -31,7 +33,7 @@ export default function Home() {
             onMouseEnter={() => setHovered(index)}
             onMouseLeave={() => setHovered(null)}
           >
-            <button className="menu-button" onClick={() => navigate(btn.path)}>
+            <button className="menu-button" onClick={() => onNavigate(btn.screen)}>
               {btn.label}
             </button>
 
