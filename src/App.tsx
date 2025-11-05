@@ -1,15 +1,18 @@
-import { Routes, Route } from "react-router-dom";
-import Home from "./pages/home"; // <-- twój nowy ekran startowy
+import { useState } from "react";
 import QuizPlayer from "./components/QuizPlayer";
+import Home from "./pages/home";
 import "./App.css";
 
 function App() {
+  const [currentScreen, setCurrentScreen] = useState<"home" | "play" | "friends" | "stats">("home");
+
   return (
-        <div>
-      {/* <FirstPage opcje={opcje} onClick={() => console.log(opcje)} /> */}
-      {/* <Test />*/}
-      <QuizPlayer />
-    </div>
+    <>
+      {currentScreen === "home" && <Home onNavigate={setCurrentScreen} />}
+      {currentScreen === "play" && <QuizPlayer />}
+      {currentScreen === "friends" && <div>Friends screen</div>}
+      {currentScreen === "stats" && <div>Stats screen</div>}
+    </>
   );
 }
 
