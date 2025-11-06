@@ -15,8 +15,7 @@ export default function Home({ onNavigate }: HomeProps) {
   const [hovered, setHovered] = useState<number | null>(null);
 
   const buttons = [
-    // { label: "PLAY", screen: "play" },
-    { label: "PLAY", Path = "https://apkamuzycznaio67-474923.ew.r.appspot.com/" },
+    { label: "PLAY", screen: "play" },
     { label: "FRIENDS", screen: "friends" },
     { label: "STATS", screen: "stats" },
   ] as const;
