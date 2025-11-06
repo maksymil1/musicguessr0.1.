@@ -33,7 +33,7 @@ export default function Home({ onNavigate }: HomeProps) {
                 onMouseEnter={() => setHovered(index)}
                 onMouseLeave={() => setHovered(null)}
               >
-              <a href="https://apkamuzycznaio67-474923.ew.r.appspot.com/"
+              <a href="https://apkamuzycznaio67-474923.ew.r.appspot.com/">
                 <button
                   className="menu-button"
                   onClick={() => onNavigate(btn.screen)}
