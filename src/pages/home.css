@@ -23,7 +23,7 @@ background: conic-gradient(
 }
 
 .home-container {
-  height: 80vh;
+  height: 100vh;
   width: 100%;
   overflow: hidden;
   display: flex;
@@ -57,7 +57,7 @@ background: conic-gradient(
   right: 0;
   bottom: 12px;
   display: flex;
-  justify-content: center;
+  justify-content: scpace-between;
   gap: clamp(24px, 4vw, 64px);
   align-items: flex-end;
   z-index: 2;
@@ -119,11 +119,18 @@ background: conic-gradient(
 }
 
 .menu-button {
-
+  display: inline-block;
+  color: black;
+  text-decoration: none;
   font-family: "TheQuick", sans-serif;
-  font-size: 2.5rem;
+
+  /* font-size: 2.5rem; */
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+
+  /* padding: 15px 50px; */
+  padding: clamp(10px, 2vw, 15px) clamp(30px, 6vw, 50px);
+
   letter-spacing: 3px;
-  padding: 15px 50px;
   border: none;
   border-radius: 20px;
   background-color: #f4f4f4;

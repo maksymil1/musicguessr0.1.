@@ -1,97 +1,83 @@
-import { useState } from "react";
-import AudioToggle from "./AudioToggle";
+import React, { useState } from "react";
+import HlsPlayer from "./HlsPlayer.tsx";
 
-export default function QuizPlayer() {
-  const [trackId, setTrackId] = useState<string | null>(null);
-  const [playlistTitle, setPlaylistTitle] = useState<string>("");
+// Stała ID utworu do testów
+const TEST_TRACK_ID = "90787841";
 
-  const extractId = (item: any): string | null => {
-    if (!item) return null;
-    if (typeof item.id !== "undefined") return String(item.id);
-    if (typeof item.track_id !== "undefined") return String(item.track_id);
-    if (item.track && typeof item.track.id !== "undefined")
-      return String(item.track.id);
-    if (item.id_str) return String(item.id_str);
-    return null;
-  };
+// --- TypeScript: Definicja oczekiwanej odpowiedzi z naszego API proxy ---
+interface StreamApiResponse {
+  streamUrl: string;
+  // Możemy też zdefiniować potencjalny błąd, jeśli API tak zwraca
+  error?: string;
+}
 
-  const searchAndPickTrack = async (keyword: string) => {
+const QuizPlayer: React.FC = () => {
+  // --- TypeScript: Typowanie stanów (useState) ---
+  const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Funkcja wywoływana po kliknięciu przycisku
+  const handlePlayTestTrack = async () => {
+    setIsLoading(true);
+    setError(null);
+    setStreamUrl(null);
+
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(keyword)}`);
-      if (!res.ok) {
-        console.error("Proxy error:", await res.text());
-        alert("Błąd wyszukiwania (proxy). Sprawdź logi serwera.");
-        return;
+      // Wywołaj WŁASNE API proxy
+      const response = await fetch(`/api/stream/${TEST_TRACK_ID}`);
+
+      if (!response.ok) {
+        const errorData: Partial<StreamApiResponse> = await response.json();
+        throw new Error(errorData.error || `Błąd serwera: ${response.status}`);
       }
 
-      const data = await res.json();
-      console.log("search result:", data);
+      const data: StreamApiResponse = await response.json();
 
-      const collections: any[] =
-        Array.isArray(data.collection) && data.collection.length
-          ? data.collection
-          : Array.isArray(data)
-          ? (data as any)
-          : Array.isArray(data?.results)
-          ? data.results
-          : Array.isArray(data?.collection?.items)
-          ? data.collection.items
-          : [];
-
-      if (collections.length === 0) {
-        alert("Nie znaleziono playlist.");
-        return;
+      if (data.streamUrl) {
+        setStreamUrl(data.streamUrl);
+      } else {
+        throw new Error("API nie zwróciło streamUrl.");
       }
-
-      const playlist = collections[0];
-      setPlaylistTitle(playlist.title ?? playlist.name ?? "Brak tytułu");
-
-      const tracks: any[] =
-        Array.isArray(playlist.tracks) && playlist.tracks.length
-          ? playlist.tracks
-          : Array.isArray(playlist.items) && playlist.items.length
-          ? playlist.items
-          : Array.isArray(playlist.tracks?.collection) &&
-            playlist.tracks.collection.length
-          ? playlist.tracks.collection
-          : [];
-
-      if (tracks.length === 0) {
-        alert("Playlista nie zawiera utworów. Sprawdź konsolę.");
-        console.log("playlist without tracks:", playlist);
-        return;
-      }
-
-      const randomItem = tracks[Math.floor(Math.random() * tracks.length)];
-      const id = extractId(randomItem);
-      if (!id) {
-        alert("Wybrany utwór nie ma rozpoznawalnego id. Sprawdź konsolę.");
-        console.log("bad track item:", randomItem);
-        return;
-      }
-
-      setTrackId(id);
     } catch (err) {
-      console.error("Network/error:", err);
-      alert("Błąd sieciowy podczas wyszukiwania playlist.");
+      // --- TypeScript: Poprawna obsługa błędów w bloku catch ---
+      // 'err' jest domyślnie typu 'unknown', więc sprawdzamy, czy jest instancją Error
+      if (err instanceof Error) {
+        console.error("Nie udało się pobrać strumienia:", err.message);
+        setError(err.message);
+      } else {
+        console.error("Nieznany błąd:", err);
+        setError("Wystąpił nieoczekiwany błąd.");
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <div>
-      <button onClick={() => searchAndPickTrack("lofi")}>
-        Wyszukaj playlistę "lofi"
+      <h2>Testowy Odtwarzacz Quizu (TSX)</h2>
+      <p>Testowanie utworu o ID: {TEST_TRACK_ID}</p>
+
+      <button onClick={handlePlayTestTrack} disabled={isLoading}>
+        {isLoading ? "Ładowanie strumienia..." : "Odtwórz utwór testowy"}
       </button>
 
-      {playlistTitle && <div>Playlista: {playlistTitle}</div>}
+      {/* Wyświetl komunikaty o stanie */}
+      {error && (
+        <div style={{ color: "red", marginTop: "10px" }}>
+          <strong>Błąd:</strong> {error}
+        </div>
+      )}
 
-      {trackId != null && (
-        <AudioToggle
-          title="Odtwórz losowy utwór"
-          trackId={trackId}
-          autoStopSeconds={5}
-        />
+      {/* Renderuj odtwarzacz HLS tylko jeśli mamy streamUrl */}
+      {streamUrl && (
+        <div style={{ marginTop: "20px" }}>
+          <HlsPlayer src={streamUrl} />
+        </div>
       )}
     </div>
   );
-}
+};
+
+export default QuizPlayer;

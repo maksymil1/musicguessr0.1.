@@ -1,23 +1,22 @@
-import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { NavLink } from "react-router-dom";
 import "./home.css";
 import logo from "../assets/logo.png";
 import nutaLeft from "../assets/nuta_left.png";
 import nutaRight from "../assets/nuta_right.png";
 import speakerLeft from "../assets/speaker-left.png";
 import speakerRight from "../assets/speaker-right.png";
+import { useState } from "react";
 
-interface HomeProps {
-  onNavigate: (screen: "home" | "play" | "friends" | "stats") => void;
-}
-
-export default function Home({ onNavigate }: HomeProps) {
+export default function Home() {
   const [hovered, setHovered] = useState<number | null>(null);
 
+  // const navigate = useNavigate();
+
   const buttons = [
-    { label: "PLAY", screen: "play" },
-    { label: "FRIENDS", screen: "friends" },
-    { label: "STATS", screen: "stats" },
+    { label: "PLAY", screen: "/play" },
+    { label: "FRIENDS", screen: "/friends" },
+    { label: "STATS", screen: "/stats" },
   ] as const;
 
   return (
@@ -33,12 +32,9 @@ export default function Home({ onNavigate }: HomeProps) {
                 onMouseEnter={() => setHovered(index)}
                 onMouseLeave={() => setHovered(null)}
               >
-                <button
-                  className="menu-button"
-                  onClick={() => onNavigate(btn.screen)}
-                >
+                <NavLink className="menu-button" to={btn.screen}>
                   {btn.label}
-                </button>
+                </NavLink>
 
                 <AnimatePresence>
                   {hovered === index && (
