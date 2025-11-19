@@ -1,72 +1,66 @@
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
-import "./Home.css";
+import { useEffect, useState } from "react";
+import { supabase } from "../../lib/supabaseClient";
 
-export default function Home() {
-  const [hovered, setHovered] = useState<number | null>(null);
-  const navigate = useNavigate();
+export default function Test() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const buttons = [
-    { label: "PLAY", path: "/play" },
-    { label: "FRIENDS", path: "/friends" },
-    { label: "STATS", path: "/stats" },
-  ];
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const response = await supabase.from("tmp").select("*");
+
+        if (response.error) throw response.error;
+
+        setRows(response.data ?? []);
+      } catch (err: any) {
+        setError(err.message ?? "Nieznany błąd");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, []);
 
   return (
-    <div className="home-container">
-      <img
-        src="/assets/speaker-left.png"
-        alt="Left speaker"
-        className="speaker left"
-      />
-      <img
-        src="/assets/speaker-right.png"
-        alt="Right speaker"
-        className="speaker right"
-      />
+    <div className="container mt-5">
+      <div className="card shadow">
+        <div className="card-body">
+          <h1 className="card-title display-4 mb-4">
+            Vite + Supabase = Działa!
+          </h1>
+          <hr />
 
-      <img src="/assets/logo.png" alt="MusicGuessr logo" className="logo" />
+          {loading && (
+            <div className="alert alert-info">Ładowanie danych z bazy...</div>
+          )}
 
-      <div className="buttons">
-        {buttons.map((btn, index) => (
-          <div
-            key={btn.label}
-            className="button-wrapper"
-            onMouseEnter={() => setHovered(index)}
-            onMouseLeave={() => setHovered(null)}
-          >
-            <button className="menu-button" onClick={() => navigate(btn.path)}>
-              {btn.label}
-            </button>
+          {error && (
+            <div className="alert alert-danger">
+              <strong>Błąd połączenia:</strong> {error}
+              <br />
+              <small>Sprawdź plik .env i istnienie tabeli 'tmp'.</small>
+            </div>
+          )}
 
-            <AnimatePresence>
-              {hovered === index && (
-                <motion.img
-                  src="/assets/notes.png"
-                  alt="notes"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  transition={{ duration: 0.3 }}
-                  className="note-icon"
-                />
-              )}
-            </AnimatePresence>
-          </div>
-        ))}
-      </div>
+          {!loading && !error && rows.length === 0 && (
+            <div className="alert alert-warning">
+              Połączono z bazą, ale tabela <strong>tmp</strong> jest pusta.
+            </div>
+          )}
 
-      <img
-        src="/assets/profile-icon.png"
-        alt="Profile"
-        className="profile-icon"
-      />
-
-      <div className="hamburger-menu">
-        <div />
-        <div />
-        <div />
+          {rows.length > 0 && (
+            <div className="alert alert-success">
+              <h4 className="alert-heading">Sukces!</h4>
+              <p>Znaleziono {rows.length} rekordów:</p>
+              <pre className="bg-white p-3 border rounded">
+                {JSON.stringify(rows, null, 2)}
+              </pre>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
