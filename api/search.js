@@ -1,33 +1,36 @@
 // // Plik: api/search.js
 import axios from 'axios';
-// import { getAccessToken } from '../../lib/soundcloudAuth'; 
 import { getAccessToken } from '../lib/soundcloudAuth.js';
 
 export default async function handler(req, res) {
   const { query } = req.query; // Pobierz termin wyszukiwania z frontendu
 
-  if (!query) {
-    return res.status(400).json({ error: 'Brak terminu wyszukiwania.' });
+  if (!query || typeof query!== 'string') {
+    return res.status(400).json({ error: 'Wymagany parametr q' });
   }
 
   try {
     const accessToken = await getAccessToken();
     
     // Użyj `axios` lub `fetch` do wykonania żądania do API SoundCloud
-    const apiUrl = `https://api.soundcloud.com/playlists`; // Lub /tracks
-    
+    // const apiUrl = `https://api.soundcloud.com/playlists`; // Lub /tracks
+    const apiUrl = `https://api.soundcloud.com/tracks`;
+
     const response = await axios.get(apiUrl, {
       params: {
         q: query,
-        limit: 10 // Przykładowy parametr
+        limit: 10,
+        acces: playable,
+        linked_partitioning: 1
       },
       headers: {
         'Authorization': `OAuth ${accessToken}` // Kluczowa zmiana! [9]
       }
     });
+    const tracks = response.data.collection;
 
     // Zwróć dane JSON bezpośrednio do klienta
-    res.status(200).json(response.data);
+    res.status(200).json(tracks);
 
   } catch (error) {
     console.error("Błąd w proxy /api/search:", error.response?.data || error.message);
