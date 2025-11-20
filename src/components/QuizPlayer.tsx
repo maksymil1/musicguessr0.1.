@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import HlsPlayer from "./HlsPlayer.tsx";
 
 // Stała ID utworu do testów
-const TEST_TRACK_ID = "90787841";
+//const TEST_TRACK_ID = "90787841";
+const TEST_TRACK_ID = "718696735";
 
 // --- TypeScript: Definicja oczekiwanej odpowiedzi z naszego API proxy ---
 interface StreamApiResponse {
