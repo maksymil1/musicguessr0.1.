@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "../../lib/supabaseClient.ts";
 import { AuthError } from "@supabase/supabase-js";
+import { useNavigate } from "react-router-dom";
 
 export default function AuthForm() {
   const [email, setEmail] = useState<string>("");
@@ -10,6 +11,7 @@ export default function AuthForm() {
   const [errorMsg, setErrorMsg] = useState<string>("");
 
   const handleAuth = async (e: React.FormEvent) => {
+    const navigate = useNavigate();
     e.preventDefault();
     setLoading(true);
     setErrorMsg("");
@@ -29,6 +31,7 @@ export default function AuthForm() {
           password,
         });
         if (error) throw error;
+        navigate("/");
       }
       // Po sukcesie App.tsx sam wykryje zmianę sesji
     } catch (error) {

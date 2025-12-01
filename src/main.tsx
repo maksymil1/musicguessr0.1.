@@ -6,25 +6,36 @@ import App from "./App.tsx";
 import Home from "./pages/Home.tsx";
 import Test from "./components/Test.tsx";
 import QuizPage from "./pages/QuizPage.tsx";
+import AuthForm from "./components/AuthForm.tsx"; // Twój formularz
+import { AuthProvider } from "./context/AuthContext.tsx";
+import ProtectedRoute from "./components/ProtectedRoute.tsx";
 
 const router = createBrowserRouter([
   {
     path: "/",
-    element: <App />,
+    element: <App />, // App jest głównym layoutem
     children: [
       {
         index: true,
-        // path: "home",
-        element: <Home />,
-        //element: <Test />,
+        element: <Home />, // Home jest publiczny! Każdy może wejść
       },
       {
-        path: "play",
-        element: <QuizPage />,
+        path: "login",
+        element: <AuthForm />, // Logowanie jest dostępne pod /login
       },
+      // --- TRASY CHRONIONE ---
       {
-        path: "friends",
-        element: <Test />,
+        element: <ProtectedRoute />, // Wszystko poniżej wymaga logowania
+        children: [
+          {
+            path: "play",
+            element: <QuizPage />,
+          },
+          {
+            path: "friends",
+            element: <Test />,
+          },
+        ],
       },
     ],
   },
@@ -32,6 +43,8 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
   </StrictMode>
 );
