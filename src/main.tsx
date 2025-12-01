@@ -6,6 +6,7 @@ import App from "./App.tsx";
 import Home from "./pages/Home.tsx";
 import Test from "./components/Test.tsx";
 import QuizPage from "./pages/QuizPage.tsx";
+import GameModes from "./pages/GameModes.tsx";
 
 const router = createBrowserRouter([
   {
@@ -14,12 +15,14 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        // path: "home",
         element: <Home />,
-        //element: <Test />,
       },
       {
-        path: "play",
+        path: "modes",
+        element: <GameModes />,
+      },
+      {
+        path: "play/:gameMode",
         element: <QuizPage />,
       },
       {

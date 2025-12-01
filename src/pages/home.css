@@ -6,21 +6,15 @@
   font-display: swap;
 }
 
-
-.master{
-  height: 100vh;
-  /* background: linear-gradient(to top right, #facc15, #3b82f6, #ec4899); */
-background: conic-gradient(
-  from 0deg,
-  #3A86FF 0%,
-  #8338EC 20%,
-  #FF006E 40%,
-  #FB5607 60%,
-  #FFBE0B 80%,
-  #3A86FF 100%
-);
-  overflow: hidden;
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+  z-index: 3;
 }
+
+
 
 .home-container {
   height: 100vh;
@@ -105,15 +99,15 @@ background: conic-gradient(
   .speakers-container { bottom: 28px; gap: 64px; }
 }
 
-.buttons {
+/* .buttons {
   display: flex;
   flex-direction: column;
   gap: 20px;
   align-items: center;
   z-index: 3;
-}
+} */
 
-.button-wrapper {
+/* .button-wrapper {
   position: relative;
 
 }
@@ -124,10 +118,10 @@ background: conic-gradient(
   text-decoration: none;
   font-family: "TheQuick", sans-serif;
 
-  /* font-size: 2.5rem; */
+
   font-size: clamp(1.5rem, 4vw, 2.5rem);
 
-  /* padding: 15px 50px; */
+
   padding: clamp(10px, 2vw, 15px) clamp(30px, 6vw, 50px);
 
   letter-spacing: 3px;
@@ -194,4 +188,4 @@ background: conic-gradient(
   height: 3px;
   background-color: #333;
   border-radius: 2px;
-}
+} */
