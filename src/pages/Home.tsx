@@ -1,35 +1,53 @@
 import { motion, AnimatePresence } from "framer-motion";
+
 import { NavLink } from "react-router-dom";
+
 import "./home.css"; // Zakładam, że style masz w tym pliku
+
 import logo from "../assets/logo.png";
+
 import nutaLeft from "../assets/nuta_left.png";
+
 import nutaRight from "../assets/nuta_right.png";
+
 import speakerLeft from "../assets/speaker-left.png";
+
 import speakerRight from "../assets/speaker-right.png";
+
 import { useState, useMemo } from "react";
+
 import { useAuth } from "../context/AuthContext"; // Importujemy nasz nowy hook
 
 export default function Home() {
   const [hovered, setHovered] = useState<number | null>(null);
+
   const { user } = useAuth(); // Sprawdzamy, czy użytkownik jest zalogowany
 
   // Używamy useMemo, aby przyciski odświeżyły się, gdy zmieni się stan 'user'
+
   const buttons = useMemo(() => {
     const baseButtons = [
       { label: "PLAY", screen: "/play", external: false },
+
       { label: "FRIENDS", screen: "/friends", external: false },
+
       {
         label: "SPOTIFY",
+
         screen: "https://apkamuzycznaio67-474923.ew.r.appspot.com/",
+
         external: true,
       },
     ];
 
     // Jeśli NIE ma użytkownika, dodaj przycisk LOGIN na początek lub koniec
+
     if (!user) {
       baseButtons.unshift({
         label: "LOGIN",
+
         screen: "/login",
+
         external: false,
       });
     }
@@ -44,6 +62,7 @@ export default function Home() {
           <img src={logo} alt="MusicGuessr logo" className="logo" />
 
           {/* Opcjonalnie: komunikat powitalny */}
+
           {user && <p style={{ color: "white" }}>Witaj, {user.email}!</p>}
 
           <div className="buttons">
@@ -77,6 +96,7 @@ export default function Home() {
                     />
                   )}
                 </AnimatePresence>
+
                 <AnimatePresence>
                   {hovered === index && (
                     <motion.img
@@ -94,10 +114,12 @@ export default function Home() {
             ))}
           </div>
         </div>
+
         <div className="speakers-container">
           <div className="speaker-left">
             <img src={speakerLeft} alt="Left speaker" />
           </div>
+
           <div className="speaker-right">
             <img src={speakerRight} alt="Right speaker" />
           </div>

@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { supabase } from "../../lib/supabaseClient.ts";
+import { supabase } from "../../lib/supabaseClient.ts"; // Upewnij się, że ścieżka do supabaseClient jest poprawna (może być ../supabaseClient lub ../lib/supabaseClient)
 import { AuthError } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
 
 export default function AuthForm() {
+  // 1. POPRAWKA: useNavigate musi być TUTAJ, na górze komponentu
+  const navigate = useNavigate();
+
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [isRegistering, setIsRegistering] = useState<boolean>(false);
@@ -11,7 +14,6 @@ export default function AuthForm() {
   const [errorMsg, setErrorMsg] = useState<string>("");
 
   const handleAuth = async (e: React.FormEvent) => {
-    const navigate = useNavigate();
     e.preventDefault();
     setLoading(true);
     setErrorMsg("");
@@ -24,6 +26,11 @@ export default function AuthForm() {
           password,
         });
         if (error) throw error;
+
+        // Opcjonalnie: Jeśli masz włączone potwierdzanie e-maila w Supabase,
+        // tutaj powinieneś wyświetlić komunikat "Sprawdź email".
+        // Jeśli nie, przekieruj od razu:
+        navigate("/");
       } else {
         // --- Logowanie ---
         const { error } = await supabase.auth.signInWithPassword({
@@ -31,11 +38,11 @@ export default function AuthForm() {
           password,
         });
         if (error) throw error;
+
+        // 2. POPRAWKA: Przekierowanie działa teraz poprawnie
         navigate("/");
       }
-      // Po sukcesie App.tsx sam wykryje zmianę sesji
     } catch (error) {
-      // Rzutowanie błędu, aby TypeScript był zadowolony
       const authError = error as AuthError;
       setErrorMsg(authError.message);
     } finally {
@@ -54,9 +61,10 @@ export default function AuthForm() {
         border: "1px solid #ddd",
         borderRadius: "8px",
         boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+        backgroundColor: "white", // Dodane tło, żeby nie było przezroczyste na kolorowym tle App
       }}
     >
-      <h2 style={{ marginBottom: "20px" }}>
+      <h2 style={{ marginBottom: "20px", color: "#333" }}>
         {isRegistering ? "Załóż konto" : "Zaloguj się"}
       </h2>
 
@@ -126,7 +134,7 @@ export default function AuthForm() {
         </p>
       )}
 
-      <p style={{ marginTop: "20px", fontSize: "14px" }}>
+      <p style={{ marginTop: "20px", fontSize: "14px", color: "#666" }}>
         {isRegistering ? "Masz już konto?" : "Nie masz konta?"}
         <button
           onClick={() => {
