@@ -3,13 +3,38 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Pamiętaj, że tutaj masz swoje zmienne z .env
+  url       = env("POSTGRES_PRISMA_URL") 
+  directUrl = env("POSTGRES_URL_NON_POOLING")
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
+model Room {
+  id        String    @id @default(uuid())
+  code      String    @unique
+  status    String    @default("WAITING")
+  createdAt DateTime  @default(now())
+  players   Player[]
+  messages  Message[] // Relacja do wiadomości
+}
+
+model Player {
+  id        String   @id @default(uuid())
+  nickname  String
+  score     Int      @default(0)
+  isHost    Boolean  @default(false)
+  roomId    String
+  // onDelete: Cascade sprawia, że jak usuniesz pokój, gracze znikną sami
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  text      String
+  nickname  String
+  roomId    String
+  // onDelete: Cascade sprawia, że jak usuniesz pokój, wiadomości znikną same
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 }

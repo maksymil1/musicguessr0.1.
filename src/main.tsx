@@ -7,6 +7,10 @@ import Home from "./pages/Home.tsx";
 import Test from "./components/Test.tsx";
 import QuizPage from "./pages/QuizPage.tsx";
 
+// --- NOWE IMPORTY (Upewnij się, że stworzyłeś te pliki w folderze pages!) ---
+import PlayMenu from "./pages/PlayMenu.tsx";
+import Lobby from "./pages/Lobby.tsx";
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -14,12 +18,18 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        // path: "home",
         element: <Home />,
-        //element: <Test />,
       },
       {
         path: "play",
+        element: <PlayMenu />, // ZMIANA: Teraz tu jest wybór (Stwórz/Dołącz)
+      },
+      {
+        path: "lobby/:roomId", // NOWOŚĆ: Dynamiczna ścieżka do lobby
+        element: <Lobby />,
+      },
+      {
+        path: "game", // PRZENIESIONE: Tu będzie właściwa rozgrywka
         element: <QuizPage />,
       },
       {
