@@ -1,246 +1,245 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom"; // 1. Import hooka
-import HlsPlayer from "./HlsPlayer.tsx";
+import type { GameTrack, GameMode } from "../types/types"; // Upewnij się, że ścieżka jest poprawna
+import { useParams, Link } from "react-router-dom";
+import HlsPlayer from "./HlsPlayer";
 
-interface StreamApiResponse {
-  streamUrl: string;
-  error?: string;
-}
+// Konfiguracja tekstów w zależności od trybu
+const modeConfig: Record<
+  GameMode,
+  { label: string; placeholder: string; btnText: string }
+> = {
+  genre: {
+    label: "Wpisz gatunek muzyczny",
+    placeholder: "np. indie rock, house, jazz...",
+    btnText: "Losuj z gatunku",
+  },
+  artist: {
+    label: "Podaj nazwę artysty",
+    placeholder: "np. Tame Impala, Daft Punk...",
+    btnText: "Szukaj artysty",
+  },
+  playlist: {
+    label: "Wklej link do playlisty SoundCloud",
+    placeholder: "https://soundcloud.com/uzytkownik/sets/nazwa-playlisty",
+    btnText: "Załaduj playlistę",
+  },
+};
 
-const TEST_TRACK_ID = "2181630667"; // id utworu do testów
+const QuizPlayer = () => {
+  // 1. Pobieramy parametr z URL (musi nazywać się tak samo jak w routerze: :gameMode)
+  const { gameMode } = useParams<{ gameMode: string }>();
 
-// Definiujemy dozwolone tryby gry dla bezpieczeństwa typów
-type GameMode = "playlist" | "genre" | "artist";
+  // Rzutowanie na typ GameMode (zakładamy, że router puszcza tylko poprawne, ale można dodać walidację)
+  const currentMode = (gameMode as GameMode) || "genre";
+  const config = modeConfig[currentMode] || modeConfig.genre;
 
-export default function QuizPlayer() {
-  const { gameMode } = useParams<{ gameMode: GameMode }>();
   const [inputValue, setInputValue] = useState("");
+  const [score, setScore] = useState(0);
 
+  const [gameQueue, setGameQueue] = useState<GameTrack[] | null>(null);
+  const [currentRound, setCurrentRound] = useState(0);
   const [isGameStarted, setIsGameStarted] = useState(false);
+  const [isGameOver, setIsGameOver] = useState(false);
 
-  // Stany odtwarzacza (z Twojego kodu)
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // --- LOGIKA UI: Teksty w zależności od trybu ---
-  const getInputLabel = () => {
-    switch (gameMode) {
-      case "playlist":
-        return "Podaj link do playlisty SoundCloud:";
-      case "genre":
-        return "Wpisz gatunek (np. house, rock):";
-      case "artist":
-        return "Podaj nazwę artysty:";
-      default:
-        return "Wpisz wartość:";
-    }
-  };
-
-  const getButtonLabel = () => {
-    switch (gameMode) {
-      case "playlist":
-        return "Załaduj Playlistę";
-      case "genre":
-        return "Losuj z Gatunku";
-      case "artist":
-        return "Losuj Artystę";
-      default:
-        return "Start";
-    }
-  };
-
+  // START GRY
   const handleStartGame = async () => {
     if (!inputValue) return;
-
     setIsGameStarted(true);
+    setIsGameOver(false);
+    setGameQueue(null);
+    setCurrentRound(0);
+    setStreamUrl(null);
     setIsLoading(true);
     setError(null);
-    setStreamUrl(null);
 
-    console.log(`Startujemy tryb: ${gameMode} z wartością: ${inputValue}`);
-
-    // TUTAJ BĘDZIE TWOJA LOGIKA FETCHOWANIA
-    // W przyszłości przekażesz 'gameMode' i 'inputValue' do swojego API
-
-    // Na razie symulacja (Twoja stara logika testowa):
     try {
-      // Wywołaj WŁASNE API proxy
-      const response = await fetch(`/api/stream/${TEST_TRACK_ID}`);
+      // Używamy currentMode zamiast gameMode ze stanu
+      const res = await fetch(
+        `/api/game/start?mode=${currentMode}&query=${encodeURIComponent(
+          inputValue
+        )}`
+      );
+      if (!res.ok) throw new Error("Błąd pobierania listy utworów");
 
-      if (!response.ok) {
-        const errorData: Partial<StreamApiResponse> = await response.json();
-        throw new Error(errorData.error || `Błąd serwera: ${response.status}`);
-      }
+      const tracks: GameTrack[] = await res.json();
+      setGameQueue(tracks);
 
-      const data: StreamApiResponse = await response.json();
-
-      if (data.streamUrl) {
-        setStreamUrl(data.streamUrl);
+      // Ładujemy pierwszy utwór
+      if (tracks.length > 0) {
+        loadStreamForTrack(tracks[0].id);
       } else {
-        throw new Error("API nie zwróciło streamUrl.");
+        throw new Error("Nie znaleziono utworów dla tego zapytania.");
       }
-    } catch (err) {
-      // --- TypeScript: Poprawna obsługa błędów w bloku catch ---
-      // 'err' jest domyślnie typu 'unknown', więc sprawdzamy, czy jest instancją Error
-      if (err instanceof Error) {
-        console.error("Nie udało się pobrać strumienia:", err.message);
-        setError(err.message);
-      } else {
-        console.error("Nieznany błąd:", err);
-        setError("Wystąpił nieoczekiwany błąd.");
-      }
+    } catch (err: any) {
+      setError(err.message);
+      setIsGameStarted(false); // Cofnij start gry w przypadku błędu
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 1. WIDOK KONFIGURACJI (Jeśli gra nie wystartowała)
-  if (!isGameStarted) {
-    return (
-      <div
-        className="quiz-setup-container"
-        style={{ textAlign: "center", marginTop: "50px" }}
-      >
-        <h2>Tryb: {gameMode?.toUpperCase()}</h2>
+  // ŁADOWANIE UTWORU (z Auto-Skipem)
+  const loadStreamForTrack = async (trackId: number) => {
+    setStreamUrl(null);
+    setError(null);
 
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "15px",
-            alignItems: "center",
-          }}
-        >
-          <label style={{ fontSize: "1.2rem" }}>{getInputLabel()}</label>
+    try {
+      const res = await fetch(`/api/stream/${trackId}`);
 
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder={
-              gameMode === "playlist"
-                ? "https://soundcloud.com/..."
-                : "np. Nirvana"
-            }
-            style={{
-              padding: "10px",
-              fontSize: "1rem",
-              width: "300px",
-              borderRadius: "8px",
-            }}
-          />
+      if (!res.ok) {
+        console.warn(
+          `Utwór ${trackId} niedostępny (Błąd ${res.status}). Pomijanie...`
+        );
+        handleNextRound(true);
+        return;
+      }
+
+      const data = await res.json();
+      if (data.streamUrl) {
+        setStreamUrl(data.streamUrl);
+      } else {
+        throw new Error("Brak URL");
+      }
+    } catch (err) {
+      console.error("Błąd sieci/streamu:", err);
+      handleNextRound(true);
+    }
+  };
+
+  // PRZEJŚCIE DALEJ
+  const handleNextRound = (skipScore = false) => {
+    if (!gameQueue) return;
+    if (skipScore) {
+      console.log("Runda pominięta bez punktu.");
+    }
+
+    const nextRound = currentRound + 1;
+    if (nextRound < gameQueue.length) {
+      setCurrentRound(nextRound);
+      loadStreamForTrack(gameQueue[nextRound].id);
+    } else {
+      setIsGameOver(true);
+      setStreamUrl(null);
+    }
+  };
+
+  const handleCorrectGuess = () => {
+    handleNextRound(false);
+    setScore(score + 1);
+  };
+
+  const currentGameTrack = gameQueue ? gameQueue[currentRound] : null;
+
+  return (
+    <div className="p-4 flex flex-col items-center gap-4 w-full max-w-2xl mx-auto">
+      {/* Nagłówek i powrót */}
+      <div className="w-full flex justify-between items-center mb-6">
+        {!isGameStarted && (
+          <Link to="/modes" className="text-sm text-gray-500 hover:underline">
+            ← Wróć do wyboru
+          </Link>
+        )}
+        <h1 className="text-2xl font-bold mx-auto">SoundCloud Quiz</h1>
+      </div>
+
+      {/* SETUP - Widok Konfiguracji */}
+      {!isGameStarted && !isGameOver && (
+        <div className="flex flex-col gap-4 w-full max-w-md items-center text-center">
+          <h2 className="text-xl font-semibold uppercase tracking-widest text-gray-700">
+            TRYB: {config.label}
+          </h2>
+
+          <div className="w-full">
+            <label className="block text-left text-sm font-medium text-gray-600 mb-1">
+              {config.label}
+            </label>
+            <input
+              className="border p-3 rounded text-black w-full shadow-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder={config.placeholder}
+            />
+          </div>
 
           <button
-            className="menu-button" // Możesz użyć klas ze swoich stylów
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
             onClick={handleStartGame}
-            style={{ padding: "10px 30px", cursor: "pointer" }}
+            disabled={isLoading || !inputValue.trim()}
           >
-            {getButtonLabel()}
+            {isLoading ? "Ładowanie..." : config.btnText}
           </button>
-        </div>
-      </div>
-    );
-  }
 
-  // 2. WIDOK GRY (Jeśli gra wystartowała)
-  return (
-    <div>
-      <button onClick={() => setIsGameStarted(false)}>← Wróć do wyboru</button>
-
-      <h2>Odtwarzacz Quizu</h2>
-      {isLoading && <p>Ładowanie utworów dla: {inputValue}...</p>}
-
-      {error && (
-        <div style={{ color: "red", marginTop: "10px" }}>
-          <strong>Błąd:</strong> {error}
+          {error && (
+            <div className="mt-4 p-3 bg-red-100 text-red-700 rounded w-full text-sm">
+              ⚠️ {error}
+            </div>
+          )}
         </div>
       )}
 
-      {streamUrl && (
-        <div style={{ marginTop: "20px" }}>
-          <HlsPlayer src={streamUrl} />
+      {/* GRA - Widok Rozgrywki */}
+      {isGameStarted && !isGameOver && currentGameTrack && (
+        <div className="flex flex-col items-center gap-6 w-full animate-fade-in">
+          <div className="flex justify-between w-full text-sm font-bold text-gray-500">
+            <span>
+              Runda {currentRound + 1} / {gameQueue?.length}
+            </span>
+            <span>Wynik: {score}</span>
+          </div>
+
+          {/* Odtwarzacz */}
+          <div className="w-full bg-gray-900 p-6 rounded-xl shadow-lg flex flex-col items-center justify-center min-h-[120px]">
+            {streamUrl ? (
+              <HlsPlayer src={streamUrl} />
+            ) : (
+              <div className="flex items-center gap-2 text-white/70">
+                <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+                Ładowanie audio...
+              </div>
+            )}
+          </div>
+
+          {/* Debug Info (do usunięcia na produkcji) */}
+          <div className="text-xs text-gray-400 border border-dashed border-gray-300 p-2 w-full text-center">
+            <p>
+              aktualnie odtwarzany: {currentGameTrack.title} -{" "}
+              {currentGameTrack.artist}
+            </p>
+          </div>
+
+          <button
+            onClick={handleCorrectGuess}
+            className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg shadow font-bold transition-transform active:scale-95"
+          >
+            SYMULUJ POPRAWNĄ ODPOWIEDŹ
+          </button>
+        </div>
+      )}
+
+      {/* KONIEC */}
+      {isGameOver && (
+        <div className="text-center py-10">
+          <h2 className="text-4xl text-orange-500 font-bold mb-2">
+            Koniec Gry!
+          </h2>
+          <p className="text-xl mb-6">
+            Twój wynik: {score} / {gameQueue?.length}
+          </p>
+
+          <button
+            onClick={() => setIsGameStarted(false)}
+            className="border-2 border-gray-800 px-6 py-2 rounded-full font-bold hover:bg-gray-800 hover:text-white transition-colors"
+          >
+            Zagraj ponownie
+          </button>
         </div>
       )}
     </div>
   );
-}
+};
 
-// import React, { useState } from "react";
-// import HlsPlayer from "./HlsPlayer.tsx";
-
-// const TEST_TRACK_ID = "2181630667";
-
-// interface StreamApiResponse {
-//   streamUrl: string;
-//   error?: string;
-// }
-
-// const QuizPlayer: React.FC = () => {
-//   const [streamUrl, setStreamUrl] = useState<string | null>(null);
-//   const [isLoading, setIsLoading] = useState<boolean>(false);
-//   const [error, setError] = useState<string | null>(null);
-
-//   const handlePlayTestTrack = async () => {
-//     setIsLoading(true);
-//     setError(null);
-//     setStreamUrl(null);
-
-//     try {
-//       // Wywołaj WŁASNE API proxy
-//       const response = await fetch(`/api/stream/${TEST_TRACK_ID}`);
-
-//       if (!response.ok) {
-//         const errorData: Partial<StreamApiResponse> = await response.json();
-//         throw new Error(errorData.error || `Błąd serwera: ${response.status}`);
-//       }
-
-//       const data: StreamApiResponse = await response.json();
-
-//       if (data.streamUrl) {
-//         setStreamUrl(data.streamUrl);
-//       } else {
-//         throw new Error("API nie zwróciło streamUrl.");
-//       }
-//     } catch (err) {
-//       // --- TypeScript: Poprawna obsługa błędów w bloku catch ---
-//       // 'err' jest domyślnie typu 'unknown', więc sprawdzamy, czy jest instancją Error
-//       if (err instanceof Error) {
-//         console.error("Nie udało się pobrać strumienia:", err.message);
-//         setError(err.message);
-//       } else {
-//         console.error("Nieznany błąd:", err);
-//         setError("Wystąpił nieoczekiwany błąd.");
-//       }
-//     } finally {
-//       setIsLoading(false);
-//     }
-//   };
-
-//   return (
-//     <div>
-//       <h2>Testowy Odtwarzacz Quizu (TSX)</h2>
-//       <p>Testowanie utworu o ID: {TEST_TRACK_ID}</p>
-
-//       <button onClick={handlePlayTestTrack} disabled={isLoading}>
-//         {isLoading ? "Ładowanie strumienia..." : "Odtwórz utwór testowy"}
-//       </button>
-
-//       {/* Wyświetl komunikaty o stanie */}
-//       {error && (
-//         <div style={{ color: "red", marginTop: "10px" }}>
-//           <strong>Błąd:</strong> {error}
-//         </div>
-//       )}
-
-//       {/* Renderuj odtwarzacz HLS tylko jeśli mamy streamUrl */}
-//       {streamUrl && (
-//         <div style={{ marginTop: "20px" }}>
-//           <HlsPlayer src={streamUrl} />
-//         </div>
-//       )}
-//     </div>
-//   );
-// };
-
-// export default QuizPlayer;
+export default QuizPlayer;

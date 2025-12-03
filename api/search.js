@@ -1,6 +1,5 @@
 // // Plik: api/search.js
 import axios from 'axios';
-// import { getAccessToken } from '../../lib/soundcloudAuth'; 
 import { getAccessToken } from '../lib/soundcloudAuth.js';
 
 export default async function handler(req, res) {

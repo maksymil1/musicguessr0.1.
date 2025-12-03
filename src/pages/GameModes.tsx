@@ -1,5 +1,5 @@
 import MenuButton from "../components/MenuButton/MenuButton.tsx";
-import "./gameModes.css";
+import "./GameModes.css";
 
 export default function GameModes() {
   const buttons = [

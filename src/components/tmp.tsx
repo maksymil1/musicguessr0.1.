@@ -50,6 +50,22 @@ export default function QuizPlayer() {
     }
   };
 
+  const getPlaceholder = () => {
+    switch (gameMode) {
+      case "playlist":
+        "https://soundcloud.com/...";
+        break;
+      case "artist":
+        return "np. Nirvana";
+        break;
+      case "genre":
+        return "np. house, rock";
+        break;
+      default:
+        return "Wpisz wartość";
+    }
+  };
+
   const handleStartGame = async () => {
     if (!inputValue) return;
 
@@ -118,11 +134,7 @@ export default function QuizPlayer() {
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder={
-              gameMode === "playlist"
-                ? "https://soundcloud.com/..."
-                : "np. Nirvana"
-            }
+            placeholder={getPlaceholder()}
             style={{
               padding: "10px",
               fontSize: "1rem",
