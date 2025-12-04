@@ -29,7 +29,7 @@ const router = createBrowserRouter([
         element: <Lobby />,
       },
       {
-        path: "game", // PRZENIESIONE: Tu będzie właściwa rozgrywka
+        path: "game/:roomId", // <--- Dodaliśmy parametr :roomId
         element: <QuizPage />,
       },
       {

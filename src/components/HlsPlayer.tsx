@@ -1,58 +1,36 @@
-import React, { useEffect, useRef } from "react";
-import Hls, { Events } from "hls.js";
+import React, { useEffect, useRef } from 'react';
+import Hls from 'hls.js';
 
 interface HlsPlayerProps {
-  src: string; // Oczekujemy, że 'src' będzie zawsze stringiem
+  src: string;
+  // Tutaj mówimy komponentowi: "Możesz dostać pilota (ref) od rodzica"
+  playerRef?: React.RefObject<HTMLVideoElement | null>; 
 }
 
-const HlsPlayer: React.FC<HlsPlayerProps> = ({ src }) => {
-  // --- TypeScript: Typowanie 'useRef' ---
-  // Ref będzie wskazywał na element <audio>, więc typujemy go jako HTMLAudioElement.
-  // Inicjalizujemy go jako 'null', ponieważ element nie istnieje przy pierwszym renderowaniu.
-  const audioRef = useRef<HTMLAudioElement>(null);
+export default function HlsPlayer({ src, playerRef }: HlsPlayerProps) {
+  const internalRef = useRef<HTMLVideoElement>(null);
+  
+  // Używamy tego refa, którego dał rodzic (QuizPage), a jak nie dał, to własnego
+  const videoRef = playerRef || internalRef; 
 
   useEffect(() => {
-    // --- TypeScript: Typowanie zmiennej hls ---
-    // Może być instancją Hls lub null, jeśli jej nie utworzymy.
-    let hls: Hls | null = null;
+    const video = videoRef.current;
+    if (!video) return;
 
-    if (audioRef.current && src) {
-      const audioEl = audioRef.current; // Dla czytelności
-
-      if (Hls.isSupported()) {
-        hls = new Hls();
-
-        hls.attachMedia(audioEl);
-
-        // Ustaw nasłuch na zdarzenie MEDIA_ATTACHED
-        hls.on(Events.MEDIA_ATTACHED, () => {
-          if (hls) hls.loadSource(src);
-        });
-
-        // Obsługa błędów HLS
-        hls.on(Events.ERROR, (_event, data) => {
-          if (data.fatal) {
-            console.error("Fatalny błąd HLS:", data);
-          } else {
-            console.warn("Błąd HLS:", data);
-          }
-        });
-      } else if (audioEl.canPlayType("application/vnd.apple.mpegurl")) {
-        // Obsługa natywnego HLS (np. Safari)
-        audioEl.src = src;
-      }
+    if (Hls.isSupported()) {
+      const hls = new Hls();
+      hls.loadSource(src);
+      hls.attachMedia(video);
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = src;
     }
+  }, [src, videoRef]);
 
-    // Funkcja czyszcząca
-    return () => {
-      if (hls) {
-        hls.destroy();
-      }
-    };
-  }, [src]); // Uruchom ten efekt ponownie tylko wtedy, gdy zmieni się `src`
-
-  // Renderuj standardowy element audio.
-  return <audio controls ref={audioRef} />;
-};
-
-export default HlsPlayer;
+  return (
+    <video 
+        ref={videoRef as React.LegacyRef<HTMLVideoElement>} 
+        controls={false} // Ukrywamy, bo gra steruje sama
+        style={{ width: "100%", maxWidth: "500px", borderRadius: "10px" }} 
+    />
+  );
+}

@@ -38,7 +38,7 @@ export default function Lobby() {
     
     // Jeśli status zmienił się na PLAYING -> przenosimy gracza do gry!
     if (data && data.status === "PLAYING") {
-        navigate("/game");
+        navigate(`/game/${roomId}`);
     }
   };
 
@@ -69,7 +69,7 @@ export default function Lobby() {
     await supabase.from("Room").update({ status: "PLAYING" }).eq("id", roomId);
     
     // 2. Przenosimy Hosta od razu (Goście dołączą za chwilę dzięki checkGameStatus)
-    navigate("/game");
+    navigate(`/game/${roomId}`);
   };
 
   // --- GŁÓWNA PĘTLA ---
