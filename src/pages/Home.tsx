@@ -8,6 +8,7 @@ export default function Home() {
   const buttons = [
     { label: "PLAY", screen: "/play", external: false },
     { label: "FRIENDS", screen: "/friends", external: false },
+    { label: "RANKING", screen: "/ranking", external: false },
     {
       label: "SPOTIFY",
       screen: "https://apkamuzycznaio67-474923.ew.r.appspot.com/",

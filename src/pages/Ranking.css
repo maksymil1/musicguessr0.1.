@@ -1,0 +1,91 @@
+.ranking-master {
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* background: radial-gradient(circle, #1a1a2e 0%, #050505 100%); */
+    color: white;
+}
+
+.ranking-card {
+    background: rgba(20, 20, 20, 0.8);
+    backdrop-filter: blur(10px);
+    padding: 40px;
+    border-radius: 24px;
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    width: 90%;
+    max-width: 500px;
+    text-align: center;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.neon-text {
+    font-size: 2.5rem;
+    color: #4ade80;
+    text-shadow: 0 0 15px rgba(74, 222, 128, 0.5);
+    margin-bottom: 5px;
+}
+
+.subtitle {
+    color: #888;
+    margin-bottom: 30px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-size: 0.8rem;
+}
+
+.ranking-list {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 10px;
+    margin-bottom: 20px;
+}
+
+.ranking-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.03);
+    margin-bottom: 10px;
+    border-radius: 12px;
+    transition: transform 0.2s;
+}
+
+.ranking-row:hover {
+    transform: scale(1.02);
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.rank-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.rank-number {
+    font-weight: bold;
+    min-width: 35px;
+    text-align: left;
+}
+
+.pos-1 { color: #ffd700; font-size: 1.4rem; } /* Złoto */
+.pos-2 { color: #c0c0c0; font-size: 1.2rem; } /* Srebro */
+.pos-3 { color: #cd7f32; font-size: 1.1rem; } /* Brąz */
+
+.nick-name {
+    font-size: 1.1rem;
+}
+
+.points-value {
+    color: #4ade80;
+    font-family: 'Courier New', Courier, monospace;
+    font-weight: bold;
+}
+
+/* Scrollbar Style */
+.ranking-list::-webkit-scrollbar { width: 5px; }
+.ranking-list::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+
+.nav-footer { margin-top: 20px; }
+

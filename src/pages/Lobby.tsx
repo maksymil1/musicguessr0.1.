@@ -35,7 +35,7 @@ export default function Lobby() {
     if (!roomId) return;
     const { data } = await supabase.from("Room").select("status").eq("id", roomId).single();
     
-    // POPRAWKA: Nawigacja musi zawierać roomId, aby pasować do trasy w main.tsx
+    // Jeśli status zmienił się na PLAYING (ustawiony przez Hosta w ekranie Genres), gość przechodzi do gry
     if (data && data.status === "PLAYING") {
         navigate(`/game/${roomId}`);
     }
@@ -62,17 +62,17 @@ export default function Lobby() {
     navigate("/");
   };
 
-  // --- STARTOWANIE GRY (Tylko Host) ---
+  // --- STARTOWANIE PROCESU GRY (Tylko Host) ---
   const startGame = async () => {
     if (!roomId) return;
-    // 1. Zmieniamy status w bazie na PLAYING
-    await supabase.from("Room").update({ status: "PLAYING" }).eq("id", roomId);
     
-    // 2. POPRAWKA: Przenosimy Hosta pod pełny adres z ID pokoju
-    navigate(`/game/${roomId}`);
+    // ZMIANA: Host nie ustawia jeszcze statusu PLAYING. 
+    // Najpierw musi wybrać tryb gry i gatunek.
+    // Przenosimy Hosta do menu wyboru trybów.
+    navigate(`/modes/${roomId}`);
   };
 
-  // --- GŁÓWNA PĘTLA ---
+  // --- GŁÓWNA PĘTLA I REALTIME ---
   useEffect(() => {
     if (!roomId) return;
 
@@ -91,7 +91,7 @@ export default function Lobby() {
           setMessages((prev) => [...prev, payload.new]);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "Room", filter: `id=eq.${roomId}` }, (payload) => {
-          // POPRAWKA: Goście są przenoszeni pod poprawny adres URL po wykryciu zmiany statusu
+          // Gdy Host w pliku Genres.tsx zaktualizuje bazę na PLAYING, goście tutaj to wyłapią
           if (payload.new.status === "PLAYING") {
               navigate(`/game/${roomId}`);
           }
@@ -102,7 +102,7 @@ export default function Lobby() {
       })
       .subscribe();
 
-    // POLLING: Zapasowy mechanizm sprawdzania co 2 sekundy
+    // POLLING: Zapasowy mechanizm sprawdzania statusu
     const interval = setInterval(() => { 
         fetchPlayers(); 
         fetchMessages(); 
@@ -192,7 +192,7 @@ export default function Lobby() {
             {isHost && (
                 <motion.button whileHover={{ scale: 1.02 }} className="menu-button" style={{ background: "#4ade80", color: "black", fontWeight: "bold", fontSize: "1.2rem", padding: "15px", width: "100%" }}
                     onClick={startGame}> 
-                    START GAME 🎵
+                    SELECT MODE & START 🎵
                 </motion.button>
             )}
 

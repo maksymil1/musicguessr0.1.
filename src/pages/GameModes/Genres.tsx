@@ -1,17 +1,41 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useParams, useNavigate } from "react-router-dom";
 import { GENRE_LIST } from "../../types/genres.ts";
+import { supabase } from "../../../lib/supabaseClient";
 import "./Genres.css";
 import { useState } from "react";
 
 const Genres = () => {
+  const { roomId } = useParams();
+  const navigate = useNavigate();
   const [inputValue, setInputValue] = useState("");
 
   const visibleGenres = GENRE_LIST.filter((genre) => {
-    if (!inputValue) return true; // Jeśli input pusty, pokaż wszystko
+    if (!inputValue) return true;
     return genre.label.toLowerCase().includes(inputValue.toLowerCase());
-  }).sort((a, b) => {
-    return a.label.localeCompare(b.label); //localeCompare - porównuje dwa stringi, obsługuje polskie znaki
-  });
+  }).sort((a, b) => a.label.localeCompare(b.label));
+
+  // FUNKCJA STARTUJĄCA GRĘ DLA WSZYSTKICH
+  const handleSelectGenre = async (genre: any) => {
+    if (!roomId) return;
+
+    // 1. Aktualizujemy status pokoju i przypisujemy wybrany gatunek/playlistę
+    const { error } = await supabase
+      .from("Room")
+      .update({ 
+        status: "PLAYING", 
+        playlistUrn: genre.playlistUrn, // Zapisujemy piosenki z tego gatunku
+        currentGenreLabel: genre.label  // Opcjonalnie do wyświetlania nazwy w grze
+      })
+      .eq("id", roomId);
+
+    if (error) {
+      console.error("Błąd startowania gry:", error.message);
+      return;
+    }
+
+    // 2. Host przechodzi do gry (Goście zostaną przekierowani przez Realtime w Lobby)
+    navigate(`/game/${roomId}`);
+  };
 
   return (
     <div className="genre-container">
@@ -27,15 +51,14 @@ const Genres = () => {
           {visibleGenres.length > 0 ? (
             visibleGenres.map((genre) => (
               <li key={genre.urn}>
-                <NavLink
-                  to={`/play/${genre.slug}`}
-                  className={({ isActive }) =>
-                    isActive ? "genre-link active" : "genre-link"
-                  }
-                  state={{ playlistUrn: genre.playlistUrn, urn: genre.urn }}
+                {/* Zmieniliśmy NavLink na div z onClick, aby wykonać logikę bazy danych przed zmianą strony */}
+                <div
+                  onClick={() => handleSelectGenre(genre)}
+                  className="genre-link"
+                  style={{ cursor: "pointer" }}
                 >
                   {genre.label}
-                </NavLink>
+                </div>
               </li>
             ))
           ) : (

@@ -39,3 +39,26 @@ model Message {
   room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 }
+
+model Friend {
+  id        String   @id @default(uuid())
+  nickname  String   @unique
+  addedAt   DateTime @default(now())
+}
+
+model GlobalRanking {
+  id         String   @id @default(uuid())
+  nickname   String   @unique
+  totalScore Int      @default(0)
+  updatedAt  DateTime @updatedAt
+}
+
+model FriendRequest {
+  id           String   @id @default(uuid())
+  senderNick   String
+  receiverNick String
+  status       String   @default("PENDING") // PENDING, ACCEPTED, REJECTED
+  createdAt    DateTime @default(now())
+
+  @@unique([senderNick, receiverNick])
+}

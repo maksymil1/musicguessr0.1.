@@ -8,6 +8,10 @@ import Test from "./components/Test.tsx";
 import QuizPage from "./pages/QuizPage.tsx";
 import PlayMenu from "./pages/PlayMenu.tsx";
 import Lobby from "./pages/Lobby.tsx";
+import GameModes from "./pages/GameModes/GameModes.tsx"; 
+import Genres from "./pages/GameModes/Genres.tsx";
+import Ranking from "./pages/Ranking.tsx";
+import Friends from "./pages/Friends.tsx";
 
 const router = createBrowserRouter([
   {
@@ -27,12 +31,24 @@ const router = createBrowserRouter([
         element: <Lobby />,
       },
       {
+        path: "modes/:roomId", // Trasa wyboru trybu
+        element: <GameModes />,
+      },
+      {
+        path: "genres/:roomId", // Trasa wyboru gatunku
+        element: <Genres />,
+      },
+      {
         path: "game/:roomId", 
         element: <QuizPage />,
       },
       {
         path: "friends",
-        element: <Test />,
+        element: <Friends />,
+      },
+      {
+        path: "ranking",
+        element: <Ranking />,
       },
     ],
   },
