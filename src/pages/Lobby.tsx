@@ -30,13 +30,12 @@ export default function Lobby() {
     if (data) setMessages(data);
   };
 
-  // --- SPRAWDZANIE CZY GRA WYSTARTOWAŁA (Dla Gości) ---
+  // --- SPRAWDZANIE CZY GRA WYSTARTOWAŁA (Dla Gości - Polling) ---
   const checkGameStatus = async () => {
     if (!roomId) return;
-    // Sprawdzamy status pokoju
     const { data } = await supabase.from("Room").select("status").eq("id", roomId).single();
     
-    // Jeśli status zmienił się na PLAYING -> przenosimy gracza do gry!
+    // POPRAWKA: Nawigacja musi zawierać roomId, aby pasować do trasy w main.tsx
     if (data && data.status === "PLAYING") {
         navigate(`/game/${roomId}`);
     }
@@ -65,10 +64,11 @@ export default function Lobby() {
 
   // --- STARTOWANIE GRY (Tylko Host) ---
   const startGame = async () => {
+    if (!roomId) return;
     // 1. Zmieniamy status w bazie na PLAYING
     await supabase.from("Room").update({ status: "PLAYING" }).eq("id", roomId);
     
-    // 2. Przenosimy Hosta od razu (Goście dołączą za chwilę dzięki checkGameStatus)
+    // 2. POPRAWKA: Przenosimy Hosta pod pełny adres z ID pokoju
     navigate(`/game/${roomId}`);
   };
 
@@ -83,16 +83,18 @@ export default function Lobby() {
     fetchPlayers();
     fetchMessages();
 
-    // Realtime (działa jeśli włączony w bazie)
+    // REALTIME UPDATES
     const channel = supabase
-      .channel("room-updates")
+      .channel(`room-${roomId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "Player", filter: `roomId=eq.${roomId}` }, () => fetchPlayers())
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "Message", filter: `roomId=eq.${roomId}` }, (payload) => {
           setMessages((prev) => [...prev, payload.new]);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "Room", filter: `id=eq.${roomId}` }, (payload) => {
-          // Jeśli Realtime działa, to wykryje start gry natychmiast
-          if (payload.new.status === "PLAYING") navigate("/game");
+          // POPRAWKA: Goście są przenoszeni pod poprawny adres URL po wykryciu zmiany statusu
+          if (payload.new.status === "PLAYING") {
+              navigate(`/game/${roomId}`);
+          }
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "Room", filter: `id=eq.${roomId}` }, () => {
           alert("Lobby has been closed!");
@@ -100,11 +102,11 @@ export default function Lobby() {
       })
       .subscribe();
 
-    // POLLING (Działa zawsze - co 2 sekundy sprawdza wszystko)
+    // POLLING: Zapasowy mechanizm sprawdzania co 2 sekundy
     const interval = setInterval(() => { 
         fetchPlayers(); 
         fetchMessages(); 
-        checkGameStatus(); // <--- To sprawdza czy gra ruszyła
+        checkGameStatus(); 
     }, 2000);
 
     const handleBeforeUnload = async () => {
@@ -119,13 +121,13 @@ export default function Lobby() {
       clearInterval(interval);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [roomId]);
+  }, [roomId, navigate]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const isHost = players.length > 0 && players[0].nickname === myNickname;
+  const isHost = players.length > 0 && players.find(p => p.id === myPlayerId)?.isHost;
 
   return (
     <div className="master">
@@ -187,11 +189,12 @@ export default function Lobby() {
 
         <div style={{ margin: "20px 0 30px 0", width: "100%", maxWidth: "800px", display: "flex", flexDirection: "column", gap: "10px", padding: "0 10px" }}>
             
-            {/* PRZYCISK START: Teraz zmienia status w bazie */}
-            <motion.button whileHover={{ scale: 1.02 }} className="menu-button" style={{ background: "#4ade80", color: "black", fontWeight: "bold", fontSize: "1.2rem", padding: "15px", width: "100%" }}
-                onClick={startGame}> 
-                START GAME 🎵
-            </motion.button>
+            {isHost && (
+                <motion.button whileHover={{ scale: 1.02 }} className="menu-button" style={{ background: "#4ade80", color: "black", fontWeight: "bold", fontSize: "1.2rem", padding: "15px", width: "100%" }}
+                    onClick={startGame}> 
+                    START GAME 🎵
+                </motion.button>
+            )}
 
             <button onClick={leaveLobby} style={{ background: "transparent", border: "2px solid #ff6b6b", color: "#ff6b6b", padding: "10px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", width: "100%" }}>
                 ❌ {isHost ? "CLOSE LOBBY (HOST)" : "LEAVE LOBBY"}

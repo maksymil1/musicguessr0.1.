@@ -6,7 +6,7 @@ import MenuButton from "../components/MenuButton/MenuButton.tsx";
 
 export default function Home() {
   const buttons = [
-    { label: "PLAY", screen: "/modes", external: false },
+    { label: "PLAY", screen: "/play", external: false },
     { label: "FRIENDS", screen: "/friends", external: false },
     {
       label: "SPOTIFY",

@@ -3,46 +3,51 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import HlsPlayer from "../components/HlsPlayer";
 
-// Klucz SoundCloud
-const SC_CLIENT_ID = "MYGy7K3hK1ZIduBISIOJee7TfiZ6vaQO";
-
-// ZMIANA: Inne ID utworu (często te bardzo znane są blokowane, ten powinien działać)
-const TEST_TRACK_ID = "192383803"; 
+// Przykładowe ID utworu do testów (możesz je później zamienić na dynamiczne z bazy)
+const TEST_TRACK_ID = "1607519955"; 
 
 export default function QuizPage() {
   const { roomId } = useParams();
   const navigate = useNavigate();
   
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
-  const [status, setStatus] = useState("LOADING TRACK...");
+  const [status, setStatus] = useState("ŁADOWANIE UTWORU...");
   
   const playerRef = useRef<HTMLVideoElement>(null);
 
-  // --- 1. Pobieranie linku z SoundCloud ---
+  // --- 1. POBIERANIE LINKU PRZEZ TWÓJ BACKEND (api/stream/[trackUrn].ts) ---
   const resolveSoundCloudStream = async (trackId: string) => {
     try {
-      const trackRes = await fetch(`https://api-v2.soundcloud.com/tracks/${trackId}?client_id=${SC_CLIENT_ID}`);
-      if (!trackRes.ok) throw new Error("Track not found or blocked");
+      setStatus("POBIERANIE STRUMIENIA...");
       
-      const trackData = await trackRes.json();
+      // UWAGA: Ścieżka musi zawierać /api/stream/, bo tak masz ułożone foldery
+      const res = await fetch(`/api/stream/${encodeURIComponent(trackId)}`);
       
-      const transcoding = trackData.media.transcodings.find((t: any) => 
-        t.format.protocol === "hls" && (t.format.mime_type.includes("mpeg") || t.format.mime_type.includes("mp4"))
-      );
+      // Sprawdzamy, czy serwer nie zwrócił błędu 404/500 w formie HTML (częsty powód błędu JSON)
+      const contentType = res.headers.get("content-type");
+      if (!res.ok || !contentType || !contentType.includes("application/json")) {
+        const errorText = await res.text();
+        console.error("Błąd serwera:", errorText);
+        throw new Error("Serwer zwrócił błąd. Sprawdź konsolę terminala.");
+      }
       
-      if (!transcoding) throw new Error("No HLS stream found");
+      const data = await res.json();
 
-      const urlRes = await fetch(`${transcoding.url}?client_id=${SC_CLIENT_ID}`);
-      const urlData = await urlRes.json();
-      return urlData.url;
-    } catch (e) {
-      console.error("SoundCloud Error:", e);
-      setStatus("ERROR: SC BLOCKED (CHECK CONSOLE)");
+      // Twój backend zwraca obiekt { streamUrl: "..." }
+      if (data.streamUrl) {
+        console.log("Strumień odebrany poprawnie!");
+        return data.streamUrl;
+      } else {
+        throw new Error("Brak linku streamUrl w odpowiedzi API");
+      }
+    } catch (e: any) {
+      console.error("Błąd QuizPage:", e.message);
+      setStatus(`BŁĄD: ${e.message}`);
       return null;
     }
   };
 
-  // --- 2. Synchronizacja Muzyki ---
+  // --- 2. SYNCHRONIZACJA MUZYKI ---
   const syncMusic = (serverStartTime: string) => {
     if (!playerRef.current) return;
 
@@ -50,75 +55,109 @@ export default function QuizPage() {
     const nowMs = Date.now();
     const diffSeconds = (nowMs - startTimeMs) / 1000;
 
-    console.log(`Syncing... Music started ${diffSeconds}s ago`);
+    console.log(`Synchronizacja: Utwór wystartował ${diffSeconds.toFixed(2)}s temu`);
 
     if (diffSeconds > 0) {
       playerRef.current.currentTime = diffSeconds;
-      playerRef.current.play().catch(e => console.log("Autoplay blocked (kliknij w stronę):", e));
-      setStatus("PLAYING 🎵");
+      // Próba odtworzenia - przeglądarki często blokują autoplay bez interakcji
+      playerRef.current.play().catch(e => {
+        console.warn("Autoplay zablokowany. Kliknij dowolne miejsce na stronie.", e);
+        setStatus("KLIKNIJ, ABY ODPROWADZIĆ DŹWIĘK 🎵");
+      });
+      setStatus("GRAMY! 🎵");
     }
   };
 
-  // --- 3. Główna Logika ---
+  // --- 3. GŁÓWNA LOGIKA STARTU I REALTIME ---
   useEffect(() => {
     if (!roomId) return;
 
-    // A. Pobierz muzykę
+    // KROK 1: Pobierz muzykę z Twojego API (omijamy CORS)
     resolveSoundCloudStream(TEST_TRACK_ID).then(url => {
-        if (url) setStreamUrl(url);
+        if (url) {
+          setStreamUrl(url);
+          // KROK 2: Połącz się z Supabase w celu synchronizacji czasu
+          initGameSync();
+        }
     });
 
-    // B. Logika startu gry
-    const initGame = async () => {
+    const initGameSync = async () => {
         const { data: room } = await supabase.from("Room").select("*").eq("id", roomId).single();
-        
         if (!room) return;
 
         if (!room.currentSongStart) {
-            // Jeśli czas startu nie jest ustawiony -> Host ustawia go TERAZ
-            // Ale tylko jeśli mamy już URL muzyki, żeby nie wystartować ciszy
+            // Logika dla HOSTA: Ustawia czas "zero" dla wszystkich
             const now = new Date().toISOString();
             await supabase.from("Room").update({ currentSongStart: now }).eq("id", roomId);
-            if(streamUrl) syncMusic(now);
+            syncMusic(now);
         } else {
-            // Dołączam do trwającej gry
-            if(streamUrl) syncMusic(room.currentSongStart);
+            // Logika dla GOŚCIA: Synchronizuje się do czasu Hosta
+            syncMusic(room.currentSongStart);
         }
     };
 
-    setTimeout(initGame, 1000);
-
-    // C. Nasłuchiwanie
-    const channel = supabase.channel("game-sync")
+    // KROK 3: Nasłuchiwanie zmian w pokoju (np. zmiana piosenki przez Hosta)
+    const channel = supabase.channel("game-updates")
         .on("postgres_changes", { event: "UPDATE", schema: "public", table: "Room", filter: `id=eq.${roomId}` }, (payload) => {
             const newStart = payload.new.currentSongStart;
-            if (newStart) {
-                syncMusic(newStart);
-            }
+            if (newStart) syncMusic(newStart);
         })
         .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [roomId, streamUrl]); 
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [roomId]); 
 
   return (
-    <div style={{ background: "#222", minHeight: "100vh", color: "white", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-      <h1 style={{ fontSize: "3rem", marginBottom: "20px" }}>GUESS THE SONG</h1>
+    <div style={{ 
+      background: "#111", 
+      minHeight: "100vh", 
+      color: "white", 
+      display: "flex", 
+      flexDirection: "column", 
+      alignItems: "center", 
+      justifyContent: "center", 
+      fontFamily: "Arial, sans-serif" 
+    }}>
+      <h1 style={{ fontSize: "3rem", marginBottom: "30px", letterSpacing: "5px", fontWeight: "900" }}>
+        GUESS THE SONG
+      </h1>
       
-      <div style={{ padding: "20px", border: "2px solid #4ade80", borderRadius: "15px", background: "rgba(0,0,0,0.5)" }}>
-          <h3 style={{ margin: 0, color: "#4ade80" }}>STATUS: {status}</h3>
+      <div style={{ 
+        padding: "25px 50px", 
+        border: "2px solid #4ade80", 
+        borderRadius: "50px", 
+        background: "rgba(74, 222, 128, 0.1)",
+        boxShadow: "0 0 20px rgba(74, 222, 128, 0.2)"
+      }}>
+          <h3 style={{ margin: 0, color: "#4ade80", textTransform: "uppercase" }}>
+            {status}
+          </h3>
       </div>
 
       {streamUrl && (
-        <div style={{ marginTop: 40, opacity: 0.8 }}>
-            <HlsPlayer 
-                src={streamUrl} 
-                playerRef={playerRef} 
-            />
+        <div style={{ marginTop: 40, opacity: 0, pointerEvents: "none" }}>
+            {/* HlsPlayer musi być w DOM, aby audio mogło grać */}
+            <HlsPlayer src={streamUrl} playerRef={playerRef} />
         </div>
       )}
       
-      <button onClick={() => navigate("/")} style={{ marginTop: "50px", background: "transparent", border: "1px solid #666", color: "#888", padding: "10px", cursor: "pointer" }}>
+      <button 
+        onClick={() => navigate("/")} 
+        style={{ 
+          marginTop: "60px", 
+          background: "transparent", 
+          border: "1px solid #444", 
+          color: "#666", 
+          padding: "12px 24px", 
+          borderRadius: "8px", 
+          cursor: "pointer",
+          transition: "0.3s"
+        }}
+        onMouseOver={(e) => (e.currentTarget.style.color = "white")}
+        onMouseOut={(e) => (e.currentTarget.style.color = "#666")}
+      >
         Quit Game
       </button>
     </div>

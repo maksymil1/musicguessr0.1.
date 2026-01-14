@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase/supabaseClient";
+import { supabase } from "../../lib/supabaseClient";
 
 export default function Test() {
   const [rows, setRows] = useState<any[]>([]);
