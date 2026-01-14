@@ -1,17 +1,39 @@
 import { useState } from "react";
-import { supabase } from "../../lib/supabaseClient.ts"; // Upewnij się, że ścieżka do supabaseClient jest poprawna (może być ../supabaseClient lub ../lib/supabaseClient)
+import { supabase } from "../../lib/supabaseClient.ts";
 import { AuthError } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
 
 export default function AuthForm() {
-  // 1. POPRAWKA: useNavigate musi być TUTAJ, na górze komponentu
   const navigate = useNavigate();
 
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+
+  // NOWE: Stan dla potwierdzenia hasła
+  const [confirmPassword, setConfirmPassword] = useState<string>("");
+
   const [isRegistering, setIsRegistering] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>("");
+
+  // Funkcja pomocnicza do tłumaczenia błędów Supabase na polski
+  const translateError = (error: AuthError) => {
+    // Supabase często zwraca błędy po angielsku. Tutaj je tłumaczymy.
+    console.log("Supabase error:", error.message); // Przydatne do debugowania
+
+    switch (error.message) {
+      case "User already registered":
+        return "Ten adres e-mail jest już zajęty. Zaloguj się lub użyj innego.";
+      case "Invalid login credentials":
+        return "Nieprawidłowy e-mail lub hasło.";
+      case "Password should be at least 6 characters.":
+        return "Hasło musi mieć co najmniej 6 znaków.";
+      case "Email not confirmed":
+        return "Adres e-mail nie został potwierdzony.";
+      default:
+        return error.message; // Jeśli błąd jest inny, wyświetl oryginał
+    }
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,6 +42,13 @@ export default function AuthForm() {
 
     try {
       if (isRegistering) {
+        // --- NOWE: Sprawdzenie czy hasła są takie same ---
+        if (password !== confirmPassword) {
+          setErrorMsg("Hasła nie są identyczne.");
+          setLoading(false); // Ważne: musimy wyłączyć loading
+          return; // Przerywamy funkcję, nie wysyłamy do Supabase
+        }
+
         // --- Rejestracja ---
         const { error } = await supabase.auth.signUp({
           email,
@@ -27,9 +56,6 @@ export default function AuthForm() {
         });
         if (error) throw error;
 
-        // Opcjonalnie: Jeśli masz włączone potwierdzanie e-maila w Supabase,
-        // tutaj powinieneś wyświetlić komunikat "Sprawdź email".
-        // Jeśli nie, przekieruj od razu:
         navigate("/");
       } else {
         // --- Logowanie ---
@@ -39,12 +65,12 @@ export default function AuthForm() {
         });
         if (error) throw error;
 
-        // 2. POPRAWKA: Przekierowanie działa teraz poprawnie
         navigate("/");
       }
     } catch (error) {
       const authError = error as AuthError;
-      setErrorMsg(authError.message);
+      // Używamy naszej nowej funkcji tłumaczącej
+      setErrorMsg(translateError(authError));
     } finally {
       setLoading(false);
     }
@@ -61,7 +87,7 @@ export default function AuthForm() {
         border: "1px solid #ddd",
         borderRadius: "8px",
         boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-        backgroundColor: "white", // Dodane tło, żeby nie było przezroczyste na kolorowym tle App
+        backgroundColor: "white",
       }}
     >
       <h2 style={{ marginBottom: "20px", color: "#333" }}>
@@ -98,6 +124,27 @@ export default function AuthForm() {
             border: "1px solid #ccc",
           }}
         />
+
+        {/* NOWE: Pole potwierdzenia hasła, widoczne tylko przy rejestracji */}
+        {isRegistering && (
+          <input
+            type="password"
+            placeholder="Powtórz hasło"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            style={{
+              padding: "10px",
+              fontSize: "16px",
+              borderRadius: "4px",
+              border: `1px solid ${
+                // Opcjonalny bajer: czerwona ramka jak hasła się różnią podczas pisania
+                confirmPassword && password !== confirmPassword ? "red" : "#ccc"
+              }`,
+            }}
+          />
+        )}
+
         <button
           type="submit"
           disabled={loading}
@@ -123,14 +170,15 @@ export default function AuthForm() {
       {errorMsg && (
         <p
           style={{
-            color: "red",
+            color: "#721c24", // Ciemniejszy czerwony dla lepszego kontrastu
             marginTop: "15px",
-            background: "#ffe6e6",
+            background: "#f8d7da",
             padding: "10px",
             borderRadius: "4px",
+            border: "1px solid #f5c6cb",
           }}
         >
-          Błąd: {errorMsg}
+          {errorMsg}
         </p>
       )}
 
@@ -140,6 +188,7 @@ export default function AuthForm() {
           onClick={() => {
             setIsRegistering(!isRegistering);
             setErrorMsg("");
+            setConfirmPassword(""); // Czyścimy potwierdzenie przy zmianie trybu
           }}
           style={{
             background: "none",
