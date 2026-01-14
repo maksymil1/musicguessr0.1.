@@ -6,8 +6,13 @@ import App from "./App.tsx";
 import Home from "./pages/Home.tsx";
 import Test from "./components/Test.tsx";
 import QuizPage from "./pages/QuizPage.tsx";
+<<<<<<< HEAD
 import PlayMenu from "./pages/PlayMenu.tsx";
 import Lobby from "./pages/Lobby.tsx";
+=======
+import GameModes from "./pages/GameModes/GameModes.tsx";
+import Genres from "./pages/GameModes/Genres.tsx";
+>>>>>>> origin/logikaGry
 
 const router = createBrowserRouter([
   {
@@ -19,6 +24,7 @@ const router = createBrowserRouter([
         element: <Home />,
       },
       {
+<<<<<<< HEAD
         path: "play",
         element: <PlayMenu />,
       },
@@ -29,6 +35,17 @@ const router = createBrowserRouter([
       {
         // 👇 TO ZOSTAŁO NAPRAWIONE (dodano :roomId)
         path: "game/:roomId", 
+=======
+        path: "modes",
+        element: <GameModes />,
+      },
+      {
+        path: "genres",
+        element: <Genres />,
+      },
+      {
+        path: "play/:gameMode",
+>>>>>>> origin/logikaGry
         element: <QuizPage />,
       },
       {

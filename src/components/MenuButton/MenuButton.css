@@ -1,0 +1,51 @@
+
+.button-wrapper {
+  position: relative;
+  display: inline-block; 
+}
+
+
+.menu-button {
+  display: inline-block;
+  color: black;
+  text-decoration: none;
+  font-family: "TheQuick", sans-serif;
+  
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  padding: clamp(10px, 2vw, 15px) clamp(30px, 6vw, 50px);
+
+  letter-spacing: 3px;
+  border: none;
+  border-radius: 20px;
+  background-color: #f4f4f4;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  white-space: nowrap; 
+}
+
+.menu-button:hover {
+  background-color: #ffffff;
+  transform: scale(1.05);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.35);
+}
+
+.note-icon-left {
+  position: absolute;
+  left: -40px;
+  top: 0%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: auto;
+  pointer-events: none; 
+}
+
+.note-icon-right {
+  position: absolute;
+  right: -40px;
+  top: 0%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: auto;
+  pointer-events: none;
+}

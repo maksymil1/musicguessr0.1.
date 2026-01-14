@@ -19,6 +19,21 @@
     font-size: 2rem;
 }
 
+.app-container {
+    height: 100vh;
+  background: conic-gradient(
+    from 0deg,
+    #3A86FF 0%,
+    #8338EC 20%,
+    #FF006E 40%,
+    #FB5607 60%,
+    #FFBE0B 80%,
+    #3A86FF 100%
+  );
+    overflow: hidden;
+}
+
+
 
 .App {
   display: flex;

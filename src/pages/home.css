@@ -6,21 +6,15 @@
   font-display: swap;
 }
 
-
-.master{
-  height: 100vh;
-  /* background: linear-gradient(to top right, #facc15, #3b82f6, #ec4899); */
-background: conic-gradient(
-  from 0deg,
-  #3A86FF 0%,
-  #8338EC 20%,
-  #FF006E 40%,
-  #FB5607 60%,
-  #FFBE0B 80%,
-  #3A86FF 100%
-);
-  overflow: hidden;
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+  z-index: 3;
 }
+
+
 
 .home-container {
   height: 100vh;
@@ -105,93 +99,3 @@ background: conic-gradient(
   .speakers-container { bottom: 28px; gap: 64px; }
 }
 
-.buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  align-items: center;
-  z-index: 3;
-}
-
-.button-wrapper {
-  position: relative;
-
-}
-
-.menu-button {
-  display: inline-block;
-  color: black;
-  text-decoration: none;
-  font-family: "TheQuick", sans-serif;
-
-  /* font-size: 2.5rem; */
-  font-size: clamp(1.5rem, 4vw, 2.5rem);
-
-  /* padding: 15px 50px; */
-  padding: clamp(10px, 2vw, 15px) clamp(30px, 6vw, 50px);
-
-  letter-spacing: 3px;
-  border: none;
-  border-radius: 20px;
-  background-color: #f4f4f4;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
-  cursor: pointer;
-  transition: all 0.25s ease;
-}
-
-.menu-button:hover {
-  background-color: #ffffff;
-  transform: scale(1.05);
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.35);
-}
-
-
-.note-icon-left {
-  position: absolute;
-  left: -40px;
-  top: 0%;
-  transform: translateY(-50%);
-  width: 32px;
-  height: auto;
-}
-
-.note-icon-right {
-  position: absolute;
-  right: -40px;
-  top: 0%;
-  transform: translateY(50%);
-  width: 32px;
-  height: auto;
-}
-
-.profile-icon {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  width: 32px;
-  height: 32px;
-  opacity: 0.8;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.profile-icon:hover {
-  opacity: 1;
-}
-
-.hamburger-menu {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  cursor: pointer;
-}
-
-.hamburger-menu div {
-  width: 24px;
-  height: 3px;
-  background-color: #333;
-  border-radius: 2px;
-}

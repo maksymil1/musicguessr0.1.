@@ -1,11 +1,13 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "../../lib/supabaseClient"; // Sprawdź czy ścieżka jest dobra
-import HlsPlayer from "../components/HlsPlayer"; // Sprawdź czy masz ten plik
+import { supabase } from "../../lib/supabaseClient";
+import HlsPlayer from "../components/HlsPlayer";
 
-// Klucz SoundCloud (ten sam co wcześniej)
+// Klucz SoundCloud
 const SC_CLIENT_ID = "MYGy7K3hK1ZIduBISIOJee7TfiZ6vaQO";
-const TEST_TRACK_ID = "718696735"; // Przykładowy utwór (możesz zmienić)
+
+// ZMIANA: Inne ID utworu (często te bardzo znane są blokowane, ten powinien działać)
+const TEST_TRACK_ID = "192383803"; 
 
 export default function QuizPage() {
   const { roomId } = useParams();
@@ -14,13 +16,14 @@ export default function QuizPage() {
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [status, setStatus] = useState("LOADING TRACK...");
   
-  // To jest "pilot" do sterowania odtwarzaczem
   const playerRef = useRef<HTMLVideoElement>(null);
 
-  // --- 1. FUNKCJA: Pobieranie linku z SoundCloud ---
+  // --- 1. Pobieranie linku z SoundCloud ---
   const resolveSoundCloudStream = async (trackId: string) => {
     try {
       const trackRes = await fetch(`https://api-v2.soundcloud.com/tracks/${trackId}?client_id=${SC_CLIENT_ID}`);
+      if (!trackRes.ok) throw new Error("Track not found or blocked");
+      
       const trackData = await trackRes.json();
       
       const transcoding = trackData.media.transcodings.find((t: any) => 
@@ -34,40 +37,35 @@ export default function QuizPage() {
       return urlData.url;
     } catch (e) {
       console.error("SoundCloud Error:", e);
+      setStatus("ERROR: SC BLOCKED (CHECK CONSOLE)");
       return null;
     }
   };
 
-  // --- 2. FUNKCJA: Synchronizacja Muzyki ---
+  // --- 2. Synchronizacja Muzyki ---
   const syncMusic = (serverStartTime: string) => {
     if (!playerRef.current) return;
 
     const startTimeMs = new Date(serverStartTime).getTime();
     const nowMs = Date.now();
-    
-    // Obliczamy ile sekund minęło od startu
     const diffSeconds = (nowMs - startTimeMs) / 1000;
 
     console.log(`Syncing... Music started ${diffSeconds}s ago`);
 
     if (diffSeconds > 0) {
-      // Przewijamy do odpowiedniego momentu
       playerRef.current.currentTime = diffSeconds;
-      
-      // Próbujemy odpalić (przeglądarki mogą blokować autoplay, ale w grze po kliknięciu powinno działać)
-      playerRef.current.play().catch(e => console.log("Autoplay blocked:", e));
+      playerRef.current.play().catch(e => console.log("Autoplay blocked (kliknij w stronę):", e));
       setStatus("PLAYING 🎵");
     }
   };
 
-  // --- 3. GŁÓWNA LOGIKA ---
+  // --- 3. Główna Logika ---
   useEffect(() => {
     if (!roomId) return;
 
-    // A. Najpierw pobierz muzykę
+    // A. Pobierz muzykę
     resolveSoundCloudStream(TEST_TRACK_ID).then(url => {
         if (url) setStreamUrl(url);
-        else setStatus("ERROR LOADING SONG");
     });
 
     // B. Logika startu gry
@@ -76,24 +74,21 @@ export default function QuizPage() {
         
         if (!room) return;
 
-        // Jeśli jestem HOSTEM i gra nie ma jeszcze czasu startu -> Ustaw go TERAZ
-        // (Sprawdzamy to po prostu: jeśli currentSongStart jest puste)
         if (!room.currentSongStart) {
+            // Jeśli czas startu nie jest ustawiony -> Host ustawia go TERAZ
+            // Ale tylko jeśli mamy już URL muzyki, żeby nie wystartować ciszy
             const now = new Date().toISOString();
             await supabase.from("Room").update({ currentSongStart: now }).eq("id", roomId);
-            // Host synchronizuje się sam ze sobą
             if(streamUrl) syncMusic(now);
-        } 
-        // Jeśli jestem GOŚCIEM (lub dołączam spóźniony) -> Pobierz czas z bazy
-        else {
+        } else {
+            // Dołączam do trwającej gry
             if(streamUrl) syncMusic(room.currentSongStart);
         }
     };
 
-    // Uruchom inicjalizację z małym opóźnieniem (żeby HlsPlayer zdążył się zamontować)
     setTimeout(initGame, 1000);
 
-    // C. Nasłuchiwanie na zmiany (dla Gości, gdy Host kliknie start)
+    // C. Nasłuchiwanie
     const channel = supabase.channel("game-sync")
         .on("postgres_changes", { event: "UPDATE", schema: "public", table: "Room", filter: `id=eq.${roomId}` }, (payload) => {
             const newStart = payload.new.currentSongStart;
@@ -114,8 +109,6 @@ export default function QuizPage() {
           <h3 style={{ margin: 0, color: "#4ade80" }}>STATUS: {status}</h3>
       </div>
 
-      {/* Odtwarzacz jest ukryty lub widoczny - zależy jak chcesz. */}
-      {/* WAŻNE: Przekazujemy playerRef, żeby kod mógł sterować czasem! */}
       {streamUrl && (
         <div style={{ marginTop: 40, opacity: 0.8 }}>
             <HlsPlayer 
