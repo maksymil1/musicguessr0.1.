@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { fetchGameTracks } from '../../lib/soundCloudGame.js';
+import { fetchGameTracks } from '../../lib/soundCloud/soundCloudGame.js';
 import { GameMode } from '../../src/types/types.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

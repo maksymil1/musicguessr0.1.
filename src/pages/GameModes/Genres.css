@@ -1,0 +1,69 @@
+:root {
+  --nav-bg-color: #f5f5f5;
+  --nav-text-color: #333;
+  --nav-hover-bg: #e0e0e0;
+  --nav-active-bg: #ff5500; /* Kolor SoundCloud */
+  --nav-active-text: #fff;
+  --nav-padding: 10px 15px;
+  --nav-radius: 4px;
+}
+
+.genre-container {
+    /* padding-top: 20vh; */
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+
+}
+
+.genre-sidebar {
+  width: 30vw;
+  background-color: none;
+  border-right: 1px solid #ddd;
+  padding: 20px;
+  height: auto; 
+  overflow-y: auto; 
+  scrollbar-color: #e0e0e0 rgba(0, 0, 0, 0.1);
+}
+
+.genre-header {
+    padding-top: 10vh;
+  font-family: "TheQuick", sans-serif;
+  font-size: 6rem;
+  text-align: center;
+}
+
+
+
+.genre-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.genre-link {
+  display: block;
+  text-decoration: none;
+  color: var(--nav-text-color);
+  background-color: var(--nav-bg-color);
+  padding: var(--nav-padding);
+  margin-bottom: 5px;
+  border-radius: var(--nav-radius);
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+/* Stan: Najechane myszą (Hover) */
+.genre-link:hover {
+  background-color: var(--nav-hover-bg);
+  transform: translateX(5px); /* Lekki ruch w prawo */
+}
+
+/* Stan: Aktywny (Active) - NavLink dodaje tę klasę automatycznie */
+.genre-link.active {
+  background-color: var(--nav-active-bg);
+  color: var(--nav-active-text);
+  font-weight: bold;
+}

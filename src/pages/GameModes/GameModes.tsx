@@ -1,10 +1,10 @@
-import MenuButton from "../components/MenuButton/MenuButton.tsx";
+import MenuButton from "../../components/MenuButton/MenuButton.tsx";
 import "./GameModes.css";
 
 export default function GameModes() {
   const buttons = [
     { label: "PLAYLISTA", screen: "/play/playlist" },
-    { label: "GATUNEK", screen: "/play/genre" },
+    { label: "GATUNEK", screen: "/genres" },
     { label: "ARTYSTA", screen: "/play/artist" },
   ] as const;
 

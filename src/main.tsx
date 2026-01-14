@@ -6,7 +6,8 @@ import App from "./App.tsx";
 import Home from "./pages/Home.tsx";
 import Test from "./components/Test.tsx";
 import QuizPage from "./pages/QuizPage.tsx";
-import GameModes from "./pages/GameModes.tsx";
+import GameModes from "./pages/GameModes/GameModes.tsx";
+import Genres from "./pages/GameModes/Genres.tsx";
 
 const router = createBrowserRouter([
   {
@@ -20,6 +21,10 @@ const router = createBrowserRouter([
       {
         path: "modes",
         element: <GameModes />,
+      },
+      {
+        path: "genres",
+        element: <Genres />,
       },
       {
         path: "play/:gameMode",
