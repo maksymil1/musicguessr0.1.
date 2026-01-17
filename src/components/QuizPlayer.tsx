@@ -1,220 +1,286 @@
-import { useState } from "react";
-import type { GameTrack, GameMode } from "../types/types";
-import { useParams, Link, useLocation, Navigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "../../lib/supabaseClient";
 import HlsPlayer from "./HlsPlayer";
+import type { GameTrack, GameMode } from "../types/types";
 
-// Konfiguracja tekstów dla różnych trybów gry
-const modeConfig: Record<
-  GameMode,
-  { label: string; placeholder: string; btnText: string }
-> = {
-  genre: {
-    label: "Wpisz gatunek muzyczny",
-    placeholder: "np. indie rock, house, jazz...",
-    btnText: "Losuj z gatunku",
-  },
-  artist: {
-    label: "Podaj nazwę artysty",
-    placeholder: "np. Tame Impala, Daft Punk...",
-    btnText: "Szukaj artysty",
-  },
-  playlist: {
-    label: "Wklej link do playlisty SoundCloud",
-    placeholder: "https://soundcloud.com/uzytkownik/sets/nazwa-playlisty",
-    btnText: "Załaduj playlistę",
-  },
-};
+interface QuizPlayerProps {
+  mode: GameMode;
+  roomId: string; // Teraz wymagane
+  isHost: boolean;
+  initialQuery?: string;
+}
 
-const QuizPlayer = () => {
-  const location = useLocation();
-  const { gameMode } = useParams<{ gameMode: string }>();
+export default function QuizPlayer({
+  mode,
+  roomId,
+  isHost,
+  initialQuery,
+}: QuizPlayerProps) {
+  const navigate = useNavigate();
+  const playerRef = useRef<HTMLAudioElement>(null);
 
-  const currentMode = (gameMode as GameMode) || "genre";
-  const config = modeConfig[currentMode] || modeConfig.genre;
-  const isGenre = gameMode !== "artist" && gameMode !== "playlist";
-
-  // Zabezpieczenie przed wejściem bez wybranego gatunku
-  if (isGenre && !location.state?.playlistUrn) {
-    return <Navigate to="/genres" replace />;
-  }
-
+  // --- STAN ---
   const [inputValue, setInputValue] = useState("");
-  const [score, setScore] = useState(0);
-
   const [gameQueue, setGameQueue] = useState<GameTrack[] | null>(null);
   const [currentRound, setCurrentRound] = useState(0);
-  const [isGameStarted, setIsGameStarted] = useState(false);
-  const [isGameOver, setIsGameOver] = useState(false);
+  const [score, setScore] = useState(0);
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [status, setStatus] = useState("");
+  const [isGameStarted, setIsGameStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  // Funkcja odtwarzania utworu z obsługą auto-skipu przy błędach
-  const playTrackAtIndex = async (index: number, queue: GameTrack[]) => {
-    if (index >= queue.length) {
-      setIsGameOver(true);
-      setStreamUrl(null);
-      return;
-    }
+  // --- 1. START GRY (Tylko HOST) ---
+  const handleStartGame = async () => {
+    // Gość nigdy nie powinien tego wywołać, ale dla pewności:
+    if (!isHost) return;
 
-    setCurrentRound(index);
-    setStreamUrl(null);
-    setError(null);
-
-    const track = queue[index];
-    console.log(`Próba odtworzenia [Runda ${index + 1}]: ${track.title}`);
+    if (!inputValue && mode !== "genre" && !initialQuery) return;
+    setIsLoading(true);
+    setStatus("Pobieranie utworów...");
 
     try {
-      const encodedUrn = encodeURIComponent(track.urn);
+      const query = initialQuery || inputValue;
+      const res = await fetch(
+        `/api/game/start?mode=${mode}&query=${encodeURIComponent(query)}`
+      );
+
+      if (!res.ok) throw new Error("Błąd pobierania utworów");
+      const tracks: GameTrack[] = await res.json();
+
+      if (tracks.length === 0) throw new Error("Brak utworów.");
+
+      // SCENARIUSZ MULTI: Wysyłamy kolejkę do bazy
+      console.log("Host wysyła kolejkę do bazy...");
+      await supabase
+        .from("Room")
+        .update({
+          gameQueue: tracks,
+          currentRound: 0,
+          currentSongStart: null, // Reset czasu
+        })
+        .eq("id", roomId);
+    } catch (e: any) {
+      console.error(e);
+      setStatus(`Błąd: ${e.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // --- 2. SUBSRYPCJA STANU POKOJU ---
+  useEffect(() => {
+    if (!roomId) return;
+
+    setStatus(isHost ? "Wpisz frazę i zacznij grę" : "Czekanie na Hosta...");
+
+    // A. Stan początkowy
+    const fetchInitialState = async () => {
+      const { data } = await supabase
+        .from("Room")
+        .select("gameQueue, currentRound, currentSongStart")
+        .eq("id", roomId)
+        .single();
+      if (data?.gameQueue) {
+        setGameQueue(data.gameQueue);
+        setCurrentRound(data.currentRound);
+        setIsGameStarted(true);
+
+        const track = data.gameQueue[data.currentRound];
+        if (track) resolveAndPlayStream(track.urn, data.currentSongStart);
+      }
+    };
+    fetchInitialState();
+
+    // B. Realtime Updates
+    const channel = supabase
+      .channel(`game-logic-${roomId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "Room",
+          filter: `id=eq.${roomId}`,
+        },
+        (payload) => {
+          const newData = payload.new;
+
+          // Nowa gra wystartowała
+          if (newData.gameQueue && (!gameQueue || newData.currentRound === 0)) {
+            setGameQueue(newData.gameQueue);
+            setIsGameStarted(true);
+            // Upewniamy się, że UI jest zresetowane
+            if (newData.currentRound === 0) setCurrentRound(0);
+          }
+
+          // Zmiana rundy
+          if (newData.currentRound !== undefined && newData.gameQueue) {
+            setCurrentRound(newData.currentRound);
+            const track = newData.gameQueue[newData.currentRound];
+            if (track)
+              resolveAndPlayStream(track.urn, newData.currentSongStart);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [roomId, isHost]); // Usunięto 'gameQueue' z deps, żeby uniknąć pętli
+
+  // --- 3. AUDIO ---
+  const resolveAndPlayStream = async (
+    urn: string,
+    serverStartTime?: string
+  ) => {
+    setStreamUrl(null);
+    setStatus("Ładowanie audio...");
+
+    try {
+      const encodedUrn = encodeURIComponent(urn);
       const res = await fetch(`/api/stream/${encodedUrn}`);
 
       if (!res.ok) {
-        console.warn(`Błąd streamu (${res.status}). Pomijanie utworu...`);
-        playTrackAtIndex(index + 1, queue);
+        // Jeśli błąd, tylko HOST skipuje
+        if (isHost) handleNextRound();
         return;
       }
 
       const data = await res.json();
       if (data.streamUrl) {
         setStreamUrl(data.streamUrl);
-      } else {
-        throw new Error("Pusty URL streamu");
+
+        // SYNCHRONIZACJA
+        if (serverStartTime && playerRef.current) {
+          const startTimeMs = new Date(serverStartTime).getTime();
+          const nowMs = Date.now();
+          const diffSec = (nowMs - startTimeMs) / 1000;
+          if (diffSec > 0) {
+            playerRef.current.currentTime = diffSec;
+          }
+        }
+        setStatus(`Runda ${currentRound + 1}`);
       }
-    } catch (err) {
-      console.error(`Błąd przy utworze ${index}:`, err);
-      playTrackAtIndex(index + 1, queue);
+    } catch (e) {
+      console.error("Stream error:", e);
+      if (isHost) handleNextRound();
     }
   };
 
-  const handleStartGame = async () => {
-    if (!inputValue && !isGenre) return;
+  // --- 4. STEROWANIE ---
+  const handleNextRound = async () => {
+    if (!isHost || !gameQueue) return; // Tylko Host
 
-    setIsGameStarted(true);
-    setIsGameOver(false);
-    setGameQueue(null);
-    setCurrentRound(0);
-    setStreamUrl(null);
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const query = isGenre ? location.state.playlistUrn : inputValue;
-      const apiMode = isGenre ? "genre" : currentMode;
-
-      const res = await fetch(
-        `/api/game/start?mode=${apiMode}&query=${encodeURIComponent(query)}`
-      );
-      if (!res.ok) throw new Error("Błąd pobierania listy utworów");
-
-      const tracks: GameTrack[] = await res.json();
-      if (tracks.length === 0) throw new Error("Brak utworów.");
-
-      setGameQueue(tracks);
-      playTrackAtIndex(0, tracks);
-    } catch (err: any) {
-      setError(err.message);
-      setIsGameStarted(false);
-    } finally {
-      setIsLoading(false);
+    // Logika końca gry
+    if (currentRound + 1 >= gameQueue.length) {
+      setStatus("KONIEC GRY!");
+      setStreamUrl(null);
+      return; // Tu można dodać update statusu pokoju na "FINISHED"
     }
+
+    const nextRound = currentRound + 1;
+    const now = new Date().toISOString();
+
+    await supabase
+      .from("Room")
+      .update({
+        currentRound: nextRound,
+        currentSongStart: now,
+      })
+      .eq("id", roomId);
   };
 
   const handleCorrectGuess = () => {
-    setScore((prev) => prev + 1);
-    if (gameQueue) {
-        playTrackAtIndex(currentRound + 1, gameQueue);
-    }
+    setScore((s) => s + 1);
+    // Gość nie skipuje rundy, tylko Host.
+    // Jeśli chcesz, żeby gość mógł skipować po zgadnięciu, musiałby wysłać RPC.
+    // W obecnej wersji tylko Host klika SKIP.
   };
 
-  const currentGameTrack = gameQueue ? gameQueue[currentRound] : null;
+  // --- WIDOK: SETUP ---
+  if (!isGameStarted) {
+    return (
+      <div className="flex flex-col items-center gap-4 mt-10">
+        <h2 className="text-white text-2xl uppercase font-bold">{mode} MODE</h2>
 
-  return (
-    <div className="p-4 flex flex-col items-center gap-4 w-full max-w-2xl mx-auto">
-      <div className="w-full flex justify-between items-center mb-6">
-        {!isGameStarted && (
-          <Link to="/modes" className="text-sm text-gray-500 hover:underline">
-            ← Wróć do wyboru
-          </Link>
-        )}
-        <h1 className="text-2xl font-bold mx-auto">SoundCloud Quiz</h1>
-      </div>
-
-      {/* SETUP */}
-      {!isGameStarted && !isGameOver && (
-        <div className="flex flex-col gap-4 w-full max-w-md items-center text-center">
-          <h2 className="text-xl font-semibold uppercase tracking-widest text-gray-700">
-            {config.label}
-          </h2>
-
-          <div className="w-full">
-            {!isGenre && (
+        {isHost ? (
+          <>
+            {mode !== "genre" && !initialQuery && (
               <input
-                className="border p-3 rounded text-black w-full shadow-sm outline-none focus:ring-2 focus:ring-blue-500"
+                className="p-3 rounded text-black w-64"
+                placeholder="Wpisz np. Tame Impala..."
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                placeholder={config.placeholder}
               />
             )}
+            <button
+              onClick={handleStartGame}
+              disabled={isLoading}
+              className="bg-green-500 text-black font-bold py-3 px-8 rounded hover:bg-green-400"
+            >
+              {isLoading ? "ŁADOWANIE..." : "START GAME"}
+            </button>
+            {status && <p className="text-red-400">{status}</p>}
+          </>
+        ) : (
+          <div className="text-white animate-pulse">
+            <p className="text-xl">Oczekiwanie na Hosta...</p>
+            <p className="text-sm text-gray-400">Host wybiera utwory.</p>
           </div>
+        )}
 
+        <button
+          onClick={() => navigate("/")}
+          className="text-gray-500 mt-4 underline"
+        >
+          Wyjdź
+        </button>
+      </div>
+    );
+  }
+
+  // --- WIDOK: GRA ---
+  return (
+    <div className="flex flex-col items-center gap-6 w-full max-w-2xl mx-auto p-4">
+      <div className="flex justify-between w-full text-white font-bold">
+        <span>
+          Runda: {currentRound + 1} / {gameQueue?.length}
+        </span>
+        <span>Wynik: {score}</span>
+      </div>
+
+      <div className="bg-gray-800 px-6 py-2 rounded-full text-green-400 font-mono">
+        {status || "GRA W TOKU"}
+      </div>
+
+      <div className="w-full bg-black/50 p-6 rounded-xl flex justify-center min-h-[100px]">
+        {streamUrl ? (
+          <HlsPlayer src={streamUrl} playerRef={playerRef} />
+        ) : (
+          <div className="animate-spin h-6 w-6 border-2 border-green-500 rounded-full border-t-transparent" />
+        )}
+      </div>
+
+      <div className="flex gap-4">
+        <button
+          onClick={handleCorrectGuess}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-bold shadow-lg transition"
+        >
+          ZGADŁEM (+1 PKT)
+        </button>
+
+        {isHost && (
           <button
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full transition-all disabled:opacity-50"
-            onClick={handleStartGame}
-            disabled={isLoading || (!inputValue.trim() && !isGenre)}
+            onClick={handleNextRound}
+            className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-3 rounded-lg font-bold shadow-lg transition"
           >
-            {isLoading ? "Ładowanie..." : config.btnText}
+            SKIP ⏭
           </button>
-
-          {error && <div className="mt-4 p-3 bg-red-100 text-red-700 rounded w-full text-sm">⚠️ {error}</div>}
-        </div>
-      )}
-
-      {/* GRA */}
-      {isGameStarted && !isGameOver && currentGameTrack && (
-        <div className="flex flex-col items-center gap-6 w-full">
-          <div className="flex justify-between w-full text-sm font-bold text-gray-500">
-            <span>Runda {currentRound + 1} / {gameQueue?.length}</span>
-            <span>Wynik: {score}</span>
-          </div>
-
-          <div className="w-full bg-gray-900 p-6 rounded-xl shadow-lg flex flex-col items-center justify-center min-h-[120px]">
-            {streamUrl ? <HlsPlayer src={streamUrl} /> : (
-              <div className="flex items-center gap-2 text-white/70">
-                <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
-                Ładowanie audio...
-              </div>
-            )}
-          </div>
-
-          <div className="text-xs text-gray-400 border border-dashed border-gray-300 p-2 w-full text-center">
-            <p>(DEBUG) Podpowiedź: {currentGameTrack.title} - {currentGameTrack.artist}</p>
-          </div>
-
-          <button
-            onClick={handleCorrectGuess}
-            className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg shadow font-bold transition-transform active:scale-95"
-          >
-            SYMULUJ POPRAWNĄ ODPOWIEDŹ
-          </button>
-        </div>
-      )}
-
-      {/* KONIEC */}
-      {isGameOver && (
-        <div className="text-center py-10">
-          <h2 className="text-4xl text-orange-500 font-bold mb-2">Koniec Gry!</h2>
-          <p className="text-xl mb-6">Twój wynik: {score} / {gameQueue?.length || 0}</p>
-          <button
-            onClick={() => setIsGameStarted(false)}
-            className="border-2 border-gray-800 px-6 py-2 rounded-full font-bold hover:bg-gray-800 hover:text-white transition-colors"
-          >
-            Zagraj ponownie
-          </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
-};
-
-export default QuizPlayer;
+}

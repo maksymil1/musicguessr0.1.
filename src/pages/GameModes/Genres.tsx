@@ -1,17 +1,33 @@
-import { NavLink } from "react-router-dom";
-import { GENRE_LIST } from "../../types/genres.ts";
-import "./Genres.css";
+// src/pages/GameModes/Genres.tsx
 import { useState } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
+import { GENRE_LIST } from "../../types/genres";
+import "./Genres.css";
 
-const Genres = () => {
+interface GenresProps {
+  onGenreSelect?: (playlistUrn: string, label: string) => void; // Nowy props dla Multi
+}
+
+const Genres = ({ onGenreSelect }: GenresProps) => {
   const [inputValue, setInputValue] = useState("");
+  const navigate = useNavigate();
 
   const visibleGenres = GENRE_LIST.filter((genre) => {
-    if (!inputValue) return true; // Jeśli input pusty, pokaż wszystko
+    if (!inputValue) return true;
     return genre.label.toLowerCase().includes(inputValue.toLowerCase());
-  }).sort((a, b) => {
-    return a.label.localeCompare(b.label); //localeCompare - porównuje dwa stringi, obsługuje polskie znaki
-  });
+  }).sort((a, b) => a.label.localeCompare(b.label));
+
+  const handleSelect = (genre: (typeof GENRE_LIST)[0]) => {
+    if (onGenreSelect) {
+      // Multiplayer: Zwracamy URN playlisty do rodzica
+      onGenreSelect(genre.playlistUrn, genre.label);
+    } else {
+      // Single Player: Nawigacja
+      navigate(`/play/${genre.slug}`, {
+        state: { playlistUrn: genre.playlistUrn, urn: genre.urn },
+      });
+    }
+  };
 
   return (
     <div className="genre-container">
@@ -27,15 +43,25 @@ const Genres = () => {
           {visibleGenres.length > 0 ? (
             visibleGenres.map((genre) => (
               <li key={genre.urn}>
-                <NavLink
-                  to={`/play/${genre.slug}`}
-                  className={({ isActive }) =>
-                    isActive ? "genre-link active" : "genre-link"
-                  }
-                  state={{ playlistUrn: genre.playlistUrn, urn: genre.urn }}
-                >
-                  {genre.label}
-                </NavLink>
+                {/* Jeśli onGenreSelect istnieje, używamy div/button zamiast NavLink */}
+                {onGenreSelect ? (
+                  <button
+                    onClick={() => handleSelect(genre)}
+                    className="genre-link"
+                  >
+                    {genre.label}
+                  </button>
+                ) : (
+                  <NavLink
+                    to={`/play/${genre.slug}`}
+                    className={({ isActive }) =>
+                      isActive ? "genre-link active" : "genre-link"
+                    }
+                    state={{ playlistUrn: genre.playlistUrn, urn: genre.urn }}
+                  >
+                    {genre.label}
+                  </NavLink>
+                )}
               </li>
             ))
           ) : (

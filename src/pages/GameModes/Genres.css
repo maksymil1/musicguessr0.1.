@@ -53,6 +53,14 @@
   margin-bottom: 5px;
   border-radius: var(--nav-radius);
   transition: background-color 0.2s ease, transform 0.1s ease;
+
+  width: 100%;            /* Wymusza pełną szerokość dla buttona */
+  text-align: left;       /* Buttony domyślnie centrują tekst, linki są do lewej */
+  border: none;           /* Usuwa domyślną ramkę buttona */
+  cursor: pointer;        /* Buttony nie zawsze mają łapkę po najechaniu */
+  font-family: inherit;   /* Buttony nie dziedziczą fontu domyślnie */
+  font-size: inherit;     /* Buttony mogą mieć inny rozmiar fontu */
+  box-sizing: border-box;
 }
 
 /* Stan: Najechane myszą (Hover) */

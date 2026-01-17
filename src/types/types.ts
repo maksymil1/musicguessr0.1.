@@ -14,7 +14,7 @@ export interface GameTrack {
 // Typ pomocniczy dla odpowiedzi z API SoundCloud
 export interface SoundCloudTrackResponse {
   id: number;
-  urn?: string; // Czasami API v2 zwraca to w polu top-level
+  urn?: string; 
   title: string;
   duration: number;
   streamable: boolean;
