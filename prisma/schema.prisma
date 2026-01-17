@@ -4,19 +4,25 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  // Pamiętaj, że tutaj masz swoje zmienne z .env
-  url       = env("POSTGRES_PRISMA_URL") 
+  url       = env("POSTGRES_PRISMA_URL")
   directUrl = env("POSTGRES_URL_NON_POOLING")
 }
 
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+}
+
 model Room {
-  id        String    @id @default(uuid())
-  code      String    @unique
-  status    String    @default("WAITING")
+  id               String    @id @default(uuid())
+  code             String    @unique
+  status           String    @default("WAITING")
   currentSongStart DateTime?
-  createdAt DateTime  @default(now())
-  players   Player[]
-  messages  Message[] // Relacja do wiadomości
+  createdAt        DateTime  @default(now())
+  players          Player[]
+  messages         Message[]
 }
 
 model Player {
@@ -25,7 +31,6 @@ model Player {
   score     Int      @default(0)
   isHost    Boolean  @default(false)
   roomId    String
-  // onDelete: Cascade sprawia, że jak usuniesz pokój, gracze znikną sami
   room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 }
@@ -35,7 +40,6 @@ model Message {
   text      String
   nickname  String
   roomId    String
-  // onDelete: Cascade sprawia, że jak usuniesz pokój, wiadomości znikną same
   room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 }
@@ -57,7 +61,7 @@ model FriendRequest {
   id           String   @id @default(uuid())
   senderNick   String
   receiverNick String
-  status       String   @default("PENDING") // PENDING, ACCEPTED, REJECTED
+  status       String   @default("PENDING")
   createdAt    DateTime @default(now())
 
   @@unique([senderNick, receiverNick])

@@ -1,53 +1,72 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../lib/supabaseClient";
 import "./home.css";
 
+// --- TYPY ---
+interface Player {
+  id: string;
+  nickname: string;
+  isHost: boolean;
+  roomId: string;
+}
+
+interface Message {
+  id: string;
+  text: string;
+  nickname: string;
+  roomId: string;
+  createdAt: string;
+}
+
 export default function Lobby() {
-  const { roomId } = useParams();
+  const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
-  
-  const [players, setPlayers] = useState<any[]>([]);
-  const [messages, setMessages] = useState<any[]>([]);
+
+  // Stan
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [roomCode, setRoomCode] = useState("...");
   const [newMessage, setNewMessage] = useState("");
-  
+
   const myNickname = localStorage.getItem("myNickname") || "Anon";
   const myPlayerId = localStorage.getItem("myPlayerId");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // --- POBIERANIE DANYCH ---
-  const fetchPlayers = async () => {
-    if (!roomId) return;
-    const { data } = await supabase.from("Player").select("*").eq("roomId", roomId).order("createdAt", { ascending: true });
-    if (data) setPlayers(data);
-  };
+  // --- LOGIKA POBIERANIA DANYCH ---
 
-  const fetchMessages = async () => {
+  const fetchData = useCallback(async () => {
     if (!roomId) return;
-    const { data } = await supabase.from("Message").select("*").eq("roomId", roomId).order("createdAt", { ascending: true });
-    if (data) setMessages(data);
-  };
 
-  // --- SPRAWDZANIE CZY GRA WYSTARTOWAŁA (Dla Gości - Polling) ---
-  const checkGameStatus = async () => {
-    if (!roomId) return;
-    const { data } = await supabase.from("Room").select("status").eq("id", roomId).single();
-    
-    // Jeśli status zmienił się na PLAYING (ustawiony przez Hosta w ekranie Genres), gość przechodzi do gry
-    if (data && data.status === "PLAYING") {
-        navigate(`/game/${roomId}`);
+    const [playersRes, messagesRes, roomRes] = await Promise.all([
+      supabase.from("Player").select("*").eq("roomId", roomId).order("createdAt", { ascending: true }),
+      supabase.from("Message").select("*").eq("roomId", roomId).order("createdAt", { ascending: true }),
+      supabase.from("Room").select("code, status").eq("id", roomId).single()
+    ]);
+
+    if (playersRes.data) setPlayers(playersRes.data);
+    if (messagesRes.data) setMessages(messagesRes.data);
+    if (roomRes.data) {
+      setRoomCode(roomRes.data.code);
+      if (roomRes.data.status === "PLAYING") navigate(`/game/${roomId}`);
     }
-  };
+  }, [roomId, navigate]);
 
   // --- AKCJE ---
-  const sendMessage = async (e: any) => {
+
+  const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
-    await supabase.from("Message").insert([{ id: crypto.randomUUID(), text: newMessage, nickname: myNickname, roomId: roomId }]);
-    setNewMessage("");
-    fetchMessages();
+    const text = newMessage.trim();
+    if (!text || !roomId) return;
+
+    setNewMessage(""); // Optymistyczna aktualizacja UI (wyczyszczenie inputu)
+    await supabase.from("Message").insert([{ 
+        id: crypto.randomUUID(), 
+        text, 
+        nickname: myNickname, 
+        roomId 
+    }]);
   };
 
   const leaveLobby = async () => {
@@ -55,152 +74,130 @@ export default function Lobby() {
     const amIHost = players.find(p => p.id === myPlayerId)?.isHost;
 
     if (amIHost) {
-        await supabase.from("Room").delete().eq("id", roomId);
+      await supabase.from("Room").delete().eq("id", roomId);
     } else {
-        await supabase.from("Player").delete().eq("id", myPlayerId);
+      await supabase.from("Player").delete().eq("id", myPlayerId);
     }
     navigate("/");
   };
 
-  // --- STARTOWANIE PROCESU GRY (Tylko Host) ---
-  const startGame = async () => {
-    if (!roomId) return;
-    
-    // ZMIANA: Host nie ustawia jeszcze statusu PLAYING. 
-    // Najpierw musi wybrać tryb gry i gatunek.
-    // Przenosimy Hosta do menu wyboru trybów.
-    navigate(`/modes/${roomId}`);
-  };
+  // --- EFFECT: SUBSKRYPCJE I INICJALIZACJA ---
 
-  // --- GŁÓWNA PĘTLA I REALTIME ---
   useEffect(() => {
     if (!roomId) return;
 
-    supabase.from("Room").select("code").eq("id", roomId).single().then(({ data }) => {
-       if (data) setRoomCode(data.code);
-    });
+    fetchData();
 
-    fetchPlayers();
-    fetchMessages();
-
-    // REALTIME UPDATES
     const channel = supabase
-      .channel(`room-${roomId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "Player", filter: `roomId=eq.${roomId}` }, () => fetchPlayers())
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "Message", filter: `roomId=eq.${roomId}` }, (payload) => {
-          setMessages((prev) => [...prev, payload.new]);
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "Room", filter: `id=eq.${roomId}` }, (payload) => {
-          // Gdy Host w pliku Genres.tsx zaktualizuje bazę na PLAYING, goście tutaj to wyłapią
-          if (payload.new.status === "PLAYING") {
-              navigate(`/game/${roomId}`);
-          }
-      })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "Room", filter: `id=eq.${roomId}` }, () => {
-          alert("Lobby has been closed!");
+      .channel(`room-events-${roomId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "Player", filter: `roomId=eq.${roomId}` }, 
+        () => fetchData())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "Message", filter: `roomId=eq.${roomId}` }, 
+        (payload) => setMessages(prev => [...prev, payload.new as Message]))
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "Room", filter: `id=eq.${roomId}` }, 
+        (payload) => {
+          if (payload.new.status === "PLAYING") navigate(`/game/${roomId}`);
+        })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "Room", filter: `id=eq.${roomId}` }, 
+        () => {
+          alert("Lobby has been closed by host!");
           navigate("/");
-      })
+        })
       .subscribe();
-
-    // POLLING: Zapasowy mechanizm sprawdzania statusu
-    const interval = setInterval(() => { 
-        fetchPlayers(); 
-        fetchMessages(); 
-        checkGameStatus(); 
-    }, 2000);
-
-    const handleBeforeUnload = async () => {
-       if (myPlayerId) {
-           await supabase.from("Player").delete().eq("id", myPlayerId);
-       }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       supabase.removeChannel(channel);
-      clearInterval(interval);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [roomId, navigate]);
+  }, [roomId, fetchData, navigate]);
 
+  // Autoscroll czatu
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const isHost = players.length > 0 && players.find(p => p.id === myPlayerId)?.isHost;
+  const isHost = players.find(p => p.id === myPlayerId)?.isHost;
 
   return (
     <div className="master">
-      <div className="home-container" style={{ justifyContent: "flex-start", paddingTop: "40px", height: "100vh", overflow: "hidden" }}>
+      <div className="lobby-layout">
         
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", maxWidth: "800px", marginBottom: "20px", padding: "0 10px" }}>
-            <h2 style={{ color: "white", letterSpacing: "2px", opacity: 0.8, margin: 0 }}>LOBBY</h2>
-            <div style={{ background: "rgba(255,255,255,0.1)", padding: "5px 15px", borderRadius: "10px", border: "1px solid #fff" }}>
-                <span style={{ color: "#aaa", fontSize: "0.7rem", display: "block" }}>CODE</span>
-                <span style={{ color: "#4ade80", fontSize: "1.2rem", fontWeight: "bold", fontFamily: "monospace" }}>{roomCode}</span>
-            </div>
-        </div>
+        {/* Header */}
+        <header className="lobby-header">
+          <h2>LOBBY</h2>
+          <div className="room-badge">
+            <small>CODE</small>
+            <span>{roomCode}</span>
+          </div>
+        </header>
 
-        <div style={{ display: "flex", gap: "20px", width: "100%", maxWidth: "800px", flex: 1, minHeight: 0, padding: "0 10px" }}>
-            
-            {/* LEWA KOLUMNA: GRACZE */}
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", overflowY: "auto" }}>
-                <h3 style={{ color: "white", fontSize: "1rem" }}>PLAYERS ({players.length})</h3>
-                <AnimatePresence>
-                    {players.map((player) => (
-                    <motion.div key={player.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="menu-button"
-                        style={{ 
-                            cursor: "default", 
-                            display: "flex", justifyContent: "space-between", alignItems: "center", 
-                            padding: "15px 20px",
-                            background: player.isHost ? "rgba(74, 222, 128, 0.2)" : "rgba(255,255,255,0.1)", 
-                            borderColor: player.isHost ? "#4ade80" : "white" 
-                        }}>
-                        
-                        <span style={{ fontSize: "1.5rem" }}>{player.nickname}</span>
-                        {player.isHost && <span style={{ fontSize: "1.5rem" }}>👑</span>}
-                    
-                    </motion.div>
-                    ))}
-                </AnimatePresence>
+        <main className="lobby-content">
+          {/* Kolumna Lewa: Gracze */}
+          <section className="players-column">
+            <h3>PLAYERS ({players.length})</h3>
+            <div className="scrollable-list">
+              <AnimatePresence mode="popLayout">
+                {players.map((player) => (
+                  <PlayerCard key={player.id} player={player} />
+                ))}
+              </AnimatePresence>
             </div>
+          </section>
 
-            {/* PRAWA KOLUMNA: CZAT */}
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "rgba(0,0,0,0.3)", borderRadius: "15px", border: "1px solid rgba(255,255,255,0.2)", overflow: "hidden" }}>
-                <div style={{ flex: 1, overflowY: "auto", padding: "15px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {messages.map((msg) => (
-                        <div key={msg.id} style={{ alignSelf: msg.nickname === myNickname ? "flex-end" : "flex-start", maxWidth: "85%" }}>
-                            <span style={{ fontSize: "0.7rem", color: "#aaa", marginLeft: "5px" }}>{msg.nickname}</span>
-                            <div style={{ background: msg.nickname === myNickname ? "#4ade80" : "white", color: "black", padding: "5px 10px", borderRadius: "10px",
-                                borderBottomRightRadius: msg.nickname === myNickname ? "0" : "10px", borderBottomLeftRadius: msg.nickname !== myNickname ? "0" : "10px", fontSize: "0.9rem", wordBreak: "break-word" }}>
-                                {msg.text}
-                            </div>
-                        </div>
-                    ))}
-                    <div ref={chatEndRef} />
+          {/* Kolumna Prawa: Czat */}
+          <section className="chat-column">
+            <div className="messages-container">
+              {messages.map((msg) => (
+                <div key={msg.id} className={`message-bubble ${msg.nickname === myNickname ? "mine" : "others"}`}>
+                  <span className="msg-user">{msg.nickname}</span>
+                  <div className="msg-text">{msg.text}</div>
                 </div>
-                <form onSubmit={sendMessage} style={{ display: "flex", padding: "10px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
-                    <input type="text" placeholder="..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
-                        style={{ flex: 1, background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "5px", color: "white", padding: "8px", marginRight: "5px" }} />
-                    <button type="submit" style={{ background: "#4ade80", border: "none", borderRadius: "5px", padding: "0 10px", cursor: "pointer", fontWeight: "bold" }}>SEND</button>
-                </form>
+              ))}
+              <div ref={chatEndRef} />
             </div>
-        </div>
-
-        <div style={{ margin: "20px 0 30px 0", width: "100%", maxWidth: "800px", display: "flex", flexDirection: "column", gap: "10px", padding: "0 10px" }}>
             
-            {isHost && (
-                <motion.button whileHover={{ scale: 1.02 }} className="menu-button" style={{ background: "#4ade80", color: "black", fontWeight: "bold", fontSize: "1.2rem", padding: "15px", width: "100%" }}
-                    onClick={startGame}> 
-                    SELECT MODE & START 🎵
-                </motion.button>
-            )}
+            <form onSubmit={sendMessage} className="chat-form">
+              <input 
+                value={newMessage} 
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Type a message..."
+              />
+              <button type="submit">SEND</button>
+            </form>
+          </section>
+        </main>
 
-            <button onClick={leaveLobby} style={{ background: "transparent", border: "2px solid #ff6b6b", color: "#ff6b6b", padding: "10px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", width: "100%" }}>
-                ❌ {isHost ? "CLOSE LOBBY (HOST)" : "LEAVE LOBBY"}
-            </button>
-        </div>
+        {/* Stopka: Przyciski sterujące */}
+        <footer className="lobby-footer">
+          {isHost && (
+            <motion.button 
+              whileHover={{ scale: 1.02 }} 
+              className="btn-primary"
+              onClick={() => navigate(`/modes/${roomId}`)}
+            >
+              SELECT MODE & START 🎵
+            </motion.button>
+          )}
+
+          <button onClick={leaveLobby} className="btn-danger">
+            {isHost ? "CLOSE LOBBY (HOST)" : "LEAVE LOBBY"}
+          </button>
+        </footer>
       </div>
     </div>
+  );
+}
+
+// --- POMOCNICZY KOMPONENT KARTY GRACZA ---
+function PlayerCard({ player }: { player: Player }) {
+  return (
+    <motion.div 
+      initial={{ opacity: 0, x: -20 }} 
+      animate={{ opacity: 1, x: 0 }} 
+      exit={{ opacity: 0, scale: 0.9 }} 
+      className={`player-item ${player.isHost ? "is-host" : ""}`}
+    >
+      <span>{player.nickname}</span>
+      {player.isHost && <span>👑</span>}
+    </motion.div>
   );
 }

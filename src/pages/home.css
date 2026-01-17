@@ -3,99 +3,126 @@
   src: url("/src/fonts/The-Quick.otf") format("opentype");
   font-weight: 400;
   font-style: normal;
-  font-display: swap;
 }
 
+.master {
+  position: relative;
+  height: 100vh;
+  width: 100vw;
+  background: conic-gradient(
+    from 0deg,
+    #3A86FF 0%, #8338EC 20%, #FF006E 40%, #FB5607 60%, #FFBE0B 80%, #3A86FF 100%
+  );
+  overflow: hidden;
+}
+
+/* --- PANEL PROFILU --- */
+.user-glass-panel {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(20, 20, 20, 0.7);
+  backdrop-filter: blur(15px);
+  padding: 8px 18px;
+  border-radius: 25px;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  z-index: 1000;
+}
+
+.user-glass-panel span {
+  color: white;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.user-email-highlight {
+  color: #4ade80;
+}
+
+.logout-glass-btn {
+  background: #ff4747;
+  color: white;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 0.65rem;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+/* --- GŁÓWNY KONTENER --- */
+.home-container {
+  height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* ZMIANA: Wyśrodkowanie w pionie zamiast flex-start, 
+     dzięki temu układ sam znajdzie złoty środek */
+  justify-content: center; 
+  padding-bottom: 60px; /* Miejsce na głośniki */
+  box-sizing: border-box;
+}
+
+/* --- LOGO --- */
+.logo {
+  /* ZMIANA: Zmniejszamy z 45vh na 38vh. 
+     Nadal jest wielkie, ale nie zabiera połowy ekranu */
+  width: auto;
+  max-width: 80%;
+  max-height: 38vh; 
+  object-fit: contain;
+  margin-bottom: 15px; /* Mniejszy odstęp pod logo */
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.4));
+}
+
+/* --- PRZYCISKI --- */
 .buttons {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 8px; /* Ciaśniejszy odstęp między kafelkami */
   align-items: center;
   z-index: 3;
 }
 
-
-
-.home-container {
-  height: 100vh;
-  width: 100%;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
+.menu-button {
+  display: inline-block;
+  color: black;
+  text-decoration: none;
+  font-family: "TheQuick", sans-serif;
+  /* Elastyczna czcionka, żeby nie rozpychała kafelków */
+  font-size: clamp(1.2rem, 2.5vw, 1.8rem); 
+  padding: 8px 45px; /* Mniejszy padding góra/dół */
+  min-width: 200px; /* Zapewnia równą szerokość przycisków */
+  text-align: center;
+  border-radius: 15px;
+  background-color: #f4f4f4;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
 }
 
-.logo {
-  width: 50%;
-  margin: 0 0 40px;
-  align-self: center; 
-  margin-bottom: 40px;
-  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+.menu-button:hover {
+  background-color: #ffffff;
+  transform: scale(1.03);
 }
 
-.home-container {
-  padding-bottom: clamp(160px, 18vh, 260px); 
-}
-
-
-:root {
-  --speaker-scale: 1.5;
-}
-
-
-
+/* --- GŁOŚNIKI --- */
 .speakers-container {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 12px;
-  display: flex;
-  justify-content: scpace-between;
-  gap: clamp(24px, 4vw, 64px);
-  align-items: flex-end;
-  z-index: 2;
+  bottom: 15px;
   width: 100%;
-  pointer-events: none;
-  padding-inline: clamp(12px, 4vw, 48px); 
-  box-sizing: border-box;
-  overflow: hidden; 
-}
-
-.speaker-left, .speaker-right {
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  width: clamp(120px, 20vw, 260px);
-  max-width: calc((100% - clamp(24px, 4vw, 64px)) / 2);
+  justify-content: space-between;
+  padding: 0 30px;
   pointer-events: none;
 }
 
-.speaker-left img,
-.speaker-right img {
-  max-width: 100%;
-  height: auto;
-  display: block;
-  transform-origin: center bottom;
-  transform: scale(var(--speaker-scale));
-  transition: transform 220ms ease;
-  pointer-events: none;
+.speaker-left img, .speaker-right img {
+  /* Głośniki nieco mniejsze, żeby nie konkurowały z przyciskami */
+  width: clamp(100px, 15vw, 180px); 
+  opacity: 0.9;
 }
-
-
-
-@media (min-width: 768px) {
-  :root { --speaker-scale: 1.05; }
-  .speakers-container { bottom: 18px; }
-}
-
-@media (min-width: 1024px) {
-  :root { --speaker-scale: 1.18; }
-  .speakers-container { bottom: 20px; gap: 48px; }
-}
-
-@media (min-width: 1400px) {
-  :root { --speaker-scale: 1.28; }
-  .speakers-container { bottom: 28px; gap: 64px; }
-}
-
