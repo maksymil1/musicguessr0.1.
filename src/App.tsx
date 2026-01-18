@@ -1,5 +1,7 @@
 import { Outlet } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
+import { useState } from "react"; // Potrzebne do obsługi menu ustawień
+import Settings from "./components/Settings"; // Importujemy nowy komponent
 import "./App.css";
 
 function App() {
@@ -17,22 +19,17 @@ function App() {
 
   return (
     <div className="app-container">
-      {/* USUNIĘTO NAVBAR: 
-          Pasek użytkownika jest teraz renderowany bezpośrednio w Home.tsx, 
-          dzięki czemu nie dubluje się i wygląda lepiej.
-      */}
+      {/* GLOBALNE USTAWIENIA - widoczne na każdej podstronie */}
+      <Settings />
 
       <main className="content-wrapper">
+        {/* Tu wyświetlają się strony: Home, Solo, Multiplayer itd. */}
         <Outlet />
       </main>
 
-      {/* UWAGA: Jeśli masz głośniki w Home.tsx, możesz rozważyć 
-          usunięcie ich stąd, żeby nie nakładały się na siebie. 
+      {/* Głośniki usunięte stąd, ponieważ dodałeś je bezpośrednio do Home.tsx. 
+          Dzięki temu nie będą zasłaniać interfejsu w trakcie samej gry. 
       */}
-      <div className="speakers-container">
-        <div className="speaker left-speaker"></div>
-        <div className="speaker right-speaker"></div>
-      </div>
     </div>
   );
 }

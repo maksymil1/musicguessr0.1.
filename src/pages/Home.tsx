@@ -11,31 +11,49 @@ import MenuButton from "../components/MenuButton/MenuButton.tsx";
 export default function Home() {
   const { user, signOut, loading } = useAuth();
 
-  // useMemo pozwala dynamicznie zarządzać listą przycisków (np. LOGIN pojawia się tylko gdy brak usera)
-  const buttons = useMemo(() => {
-    const list = [
-      { label: "PLAY", screen: "/tryb" },     // Zmieniono z /play na /tryb
-      { label: "FRIENDS", screen: "/friends" },
-      { label: "RANKING", screen: "/ranking" },
-      { label: "EXPLORE", screen: "/search" }, // W miejsce Spotify wchodzi Explore
-    ];
-
-    // Dodaj LOGIN na początek, jeśli użytkownik nie jest zalogowany
-    if (!loading && !user) {
-      list.unshift({ label: "LOGIN", screen: "/login" });
-    }
-    return list;
-  }, [user, loading]);
+  // Główna lista przycisków na środku (bez LOGIN)
+  const buttons = useMemo(() => [
+    { label: "PLAY", screen: "/tryb" },
+    { label: "FRIENDS", screen: "/friends" },
+    { label: "RANKING", screen: "/ranking" },
+    { label: "EXPLORE", screen: "/search" },
+  ], []);
 
   return (
     <div className="master">
-      {/* Pasek profilu - zachowany z poprzedniej wersji */}
-      {!loading && user && (
-        <div className="user-glass-panel">
-          <span style={{ color: '#4ade80' }}>👤 {user.email}</span>
-          <button onClick={signOut} className="logout-glass-btn">WYLOGUJ</button>
-        </div>
-      )}
+      
+      {/* SEKCJA LOGOWANIA W PRAWYM GÓRNYM ROGU */}
+      <div style={{ 
+        position: 'absolute', 
+        top: '20px', 
+        right: '20px', 
+        zIndex: 1000,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-end'
+      }}>
+        {!loading && (
+          user ? (
+            <div className="user-glass-panel" style={{ position: 'static' }}>
+              <span style={{ color: '#4ade80' }}>👤 {user.email}</span>
+              <button onClick={signOut} className="logout-glass-btn">WYLOGUJ</button>
+            </div>
+          ) : (
+            <NavLink 
+              to="/login" 
+              className="menu-button" 
+              style={{ 
+                fontSize: '1rem',      /* Mniejszy tekst */
+                padding: '5px 20px',   /* Mniejszy kafelek */
+                minWidth: 'auto',      /* Nie tak szeroki jak te na środku */
+                boxShadow: '0 4px 15px rgba(0,0,0,0.3)' 
+              }}
+            >
+              LOGIN
+            </NavLink>
+          )
+        )}
+      </div>
 
       <div className="home-container">
         {/* Logo */}

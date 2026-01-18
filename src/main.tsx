@@ -3,8 +3,9 @@ import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import "bootstrap/dist/css/bootstrap.min.css";
 
-// IMPORT KONTEKSTU (Kluczowe dla działania logowania i sesji)
+// IMPORT KONTEKSTÓW
 import { AuthProvider } from "./context/AuthContext.tsx";
+import { VolumeProvider } from "./context/VolumeContext.tsx"; // Nowy kontekst głośności
 
 // IMPORTY KOMPONENTÓW I STRON
 import App from "./App.tsx";
@@ -75,9 +76,11 @@ const router = createBrowserRouter([
 // RENDEROWANIE APLIKACJI
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {/* AuthProvider musi tu zostać, żeby dane o userze "płynęły" do Home.tsx */}
     <AuthProvider>
-      <RouterProvider router={router} />
+      {/* VolumeProvider owija RouterProvider, aby suwak głośności działał wszędzie */}
+      <VolumeProvider>
+        <RouterProvider router={router} />
+      </VolumeProvider>
     </AuthProvider>
   </StrictMode>
 );

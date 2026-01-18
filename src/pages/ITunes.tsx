@@ -1,6 +1,31 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import MenuButton from "../components/MenuButton/MenuButton.tsx";
+import { useVolume } from "../context/VolumeContext"; // Importujemy głośność
 import "./Ranking.css";
+
+// Pomocniczy komponent dla pojedynczego odtwarzacza, aby lepiej kontrolować głośność
+const AudioPlayer = ({ src }: { src: string }) => {
+  const { volume, isMuted } = useVolume();
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Synchronizacja głośności: kiedy zmieniasz suwak w ustawieniach, 
+  // ten efekt natychmiast aktualizuje grającą piosenkę.
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : volume / 100;
+    }
+  }, [volume, isMuted]);
+
+  return (
+    <audio
+      ref={audioRef}
+      controls
+      src={src}
+      className="custom-audio-player"
+      style={{ width: "100%", height: "30px", marginTop: "8px" }}
+    />
+  );
+};
 
 export default function MusicPage() {
   const [query, setQuery] = useState("");
@@ -11,20 +36,16 @@ export default function MusicPage() {
     if (!query) return;
     setLoading(true);
     try {
-      // Korzystamy z API iTunes - nie wymaga tokenów ani serwera auth!
       const res = await fetch(
-        `https://itunes.apple.com/search?term=${encodeURIComponent(
-          query
-        )}&entity=song&limit=10`
+        `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=10`
       );
       const data = await res.json();
 
-      // Mapujemy dane na format podobny do Twojego poprzedniego
       const songs = data.results.map((item: any) => ({
         id: item.trackId,
         name: item.trackName,
         artist: item.artistName,
-        preview_url: item.previewUrl, // iTunes zawsze daje previewUrl!
+        preview_url: item.previewUrl,
         albumArt: item.artworkUrl100,
       }));
 
@@ -40,7 +61,7 @@ export default function MusicPage() {
     <div className="ranking-master">
       <div className="ranking-card" style={{ maxWidth: "600px" }}>
         <h1 className="neon-text">MUSIC EXPLORER</h1>
-        <p className="subtitle">Próbki z iTunes - Działają bez logowania</p>
+        <p className="subtitle">Próbki z iTunes - Sterowane globalną głośnością</p>
 
         <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
           <input
@@ -59,6 +80,7 @@ export default function MusicPage() {
           />
           <button
             onClick={search}
+            className="search-btn"
             style={{
               background: "#4ade80",
               color: "black",
@@ -73,47 +95,19 @@ export default function MusicPage() {
           </button>
         </div>
 
-        <div
-          className="ranking-list"
-          style={{ maxHeight: "400px", overflowY: "auto" }}
-        >
+        <div className="ranking-list" style={{ maxHeight: "400px", overflowY: "auto" }}>
           {loading ? (
-            <p>Szukanie...</p>
+            <p style={{ color: "white" }}>Szukanie...</p>
           ) : (
             results.map((track) => (
-              <div
-                key={track.id}
-                className="ranking-row"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "15px",
-                  padding: "10px",
-                }}
-              >
-                <img
-                  src={track.albumArt}
-                  alt="Cover"
-                  style={{ width: "50px", borderRadius: "5px" }}
-                />
+              <div key={track.id} className="ranking-row" style={{ display: "flex", alignItems: "center", gap: "15px", padding: "10px" }}>
+                <img src={track.albumArt} alt="Cover" style={{ width: "50px", borderRadius: "5px" }} />
                 <div style={{ flex: 1, textAlign: "left" }}>
-                  <div
-                    style={{
-                      color: "#4ade80",
-                      fontWeight: "bold",
-                      fontSize: "0.9rem",
-                    }}
-                  >
-                    {track.name}
-                  </div>
-                  <div style={{ fontSize: "0.7rem", color: "#888" }}>
-                    {track.artist}
-                  </div>
-                  <audio
-                    controls
-                    src={track.preview_url}
-                    style={{ width: "100%", height: "30px", marginTop: "8px" }}
-                  />
+                  <div style={{ color: "#4ade80", fontWeight: "bold", fontSize: "0.9rem" }}>{track.name}</div>
+                  <div style={{ fontSize: "0.7rem", color: "#888" }}>{track.artist}</div>
+                  
+                  {/* Używamy naszego nowego odtwarzacza podpiętego pod Context */}
+                  <AudioPlayer src={track.preview_url} />
                 </div>
               </div>
             ))
