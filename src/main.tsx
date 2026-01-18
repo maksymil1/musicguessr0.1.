@@ -3,20 +3,21 @@ import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import "bootstrap/dist/css/bootstrap.min.css";
 
-// IMPORT KONTEKSTU (To naprawia biały ekran)
+// IMPORT KONTEKSTU (Kluczowe dla działania logowania i sesji)
 import { AuthProvider } from "./context/AuthContext.tsx";
 
 // IMPORTY KOMPONENTÓW I STRON
 import App from "./App.tsx";
 import Home from "./pages/Home.tsx";
-import QuizPage from "./pages/QuizPage.tsx";
 import PlayMenu from "./pages/PlayMenu.tsx";
 import Lobby from "./pages/Lobby.tsx";
-import GameModes from "./pages/GameModes/GameModes.tsx"; 
-import Genres from "./pages/GameModes/Genres.tsx";
+import MultiplayerGame from "./pages/MultiplayerGame.tsx";
+import Tryb from "./pages/GameModes/Tryb.tsx";
+import Solo from "./pages/Solo.tsx";
+import MusicPage from "./pages/ITunes.tsx"; // Twój EXPLORE
 import Ranking from "./pages/Ranking.tsx";
 import Friends from "./pages/Friends.tsx";
-import Login from "./pages/Login.tsx"; // Upewnij się, że masz ten plik
+import Login from "./pages/Login.tsx";
 
 // KONFIGURACJA ROUTERA
 const router = createBrowserRouter([
@@ -29,11 +30,24 @@ const router = createBrowserRouter([
         element: <Home />,
       },
       {
-        path: "login", // Nowa trasa do logowania
+        path: "login",
         element: <Login />,
       },
       {
-        path: "play",
+        path: "ranking",
+        element: <Ranking />,
+      },
+      {
+        path: "friends",
+        element: <Friends />,
+      },
+      {
+        path: "tryb",
+        element: <Tryb />,
+      },
+      // --- ŚCIEŻKI MULTIPLAYER ---
+      {
+        path: "tryb/multiplayer",
         element: <PlayMenu />,
       },
       {
@@ -41,24 +55,18 @@ const router = createBrowserRouter([
         element: <Lobby />,
       },
       {
-        path: "modes/:roomId",
-        element: <GameModes />,
+        path: "game/:roomId",
+        element: <MultiplayerGame />,
       },
+      // --- ŚCIEŻKI SINGLEPLAYER ---
       {
-        path: "genres/:roomId",
-        element: <Genres />,
+        path: "tryb/singleplayer",
+        element: <Solo />,
       },
+      // --- EXPLORE / SEARCH ---
       {
-        path: "game/:roomId", 
-        element: <QuizPage />,
-      },
-      {
-        path: "friends",
-        element: <Friends />,
-      },
-      {
-        path: "ranking",
-        element: <Ranking />,
+        path: "search",
+        element: <MusicPage />,
       },
     ],
   },
@@ -67,8 +75,7 @@ const router = createBrowserRouter([
 // RENDEROWANIE APLIKACJI
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {/* AuthProvider musi otaczać RouterProvider, 
-        aby każda strona miała dostęp do danych o użytkowniku */}
+    {/* AuthProvider musi tu zostać, żeby dane o userze "płynęły" do Home.tsx */}
     <AuthProvider>
       <RouterProvider router={router} />
     </AuthProvider>
