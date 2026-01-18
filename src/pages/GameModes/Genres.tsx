@@ -1,40 +1,32 @@
-import { NavLink, useParams, useNavigate } from "react-router-dom";
-import { GENRE_LIST } from "../../types/genres.ts";
-import { supabase } from "../../../lib/supabaseClient";
-import "./Genres.css";
+// src/pages/GameModes/Genres.tsx
 import { useState } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
+import { GENRE_LIST } from "../../types/genres";
+import "./Genres.css";
 
-const Genres = () => {
-  const { roomId } = useParams();
-  const navigate = useNavigate();
+interface GenresProps {
+  onGenreSelect?: (playlistUrn: string, label: string) => void; // Nowy props dla Multi
+}
+
+const Genres = ({ onGenreSelect }: GenresProps) => {
   const [inputValue, setInputValue] = useState("");
+  const navigate = useNavigate();
 
   const visibleGenres = GENRE_LIST.filter((genre) => {
     if (!inputValue) return true;
     return genre.label.toLowerCase().includes(inputValue.toLowerCase());
   }).sort((a, b) => a.label.localeCompare(b.label));
 
-  // FUNKCJA STARTUJĄCA GRĘ DLA WSZYSTKICH
-  const handleSelectGenre = async (genre: any) => {
-    if (!roomId) return;
-
-    // 1. Aktualizujemy status pokoju i przypisujemy wybrany gatunek/playlistę
-    const { error } = await supabase
-      .from("Room")
-      .update({ 
-        status: "PLAYING", 
-        playlistUrn: genre.playlistUrn, // Zapisujemy piosenki z tego gatunku
-        currentGenreLabel: genre.label  // Opcjonalnie do wyświetlania nazwy w grze
-      })
-      .eq("id", roomId);
-
-    if (error) {
-      console.error("Błąd startowania gry:", error.message);
-      return;
+  const handleSelect = (genre: (typeof GENRE_LIST)[0]) => {
+    if (onGenreSelect) {
+      // Multiplayer: Zwracamy URN playlisty do rodzica
+      onGenreSelect(genre.playlistUrn, genre.label);
+    } else {
+      // Single Player: Nawigacja
+      navigate(`/play/${genre.slug}`, {
+        state: { playlistUrn: genre.playlistUrn, urn: genre.urn },
+      });
     }
-
-    // 2. Host przechodzi do gry (Goście zostaną przekierowani przez Realtime w Lobby)
-    navigate(`/game/${roomId}`);
   };
 
   return (
@@ -51,14 +43,25 @@ const Genres = () => {
           {visibleGenres.length > 0 ? (
             visibleGenres.map((genre) => (
               <li key={genre.urn}>
-                {/* Zmieniliśmy NavLink na div z onClick, aby wykonać logikę bazy danych przed zmianą strony */}
-                <div
-                  onClick={() => handleSelectGenre(genre)}
-                  className="genre-link"
-                  style={{ cursor: "pointer" }}
-                >
-                  {genre.label}
-                </div>
+                {/* Jeśli onGenreSelect istnieje, używamy div/button zamiast NavLink */}
+                {onGenreSelect ? (
+                  <button
+                    onClick={() => handleSelect(genre)}
+                    className="genre-link"
+                  >
+                    {genre.label}
+                  </button>
+                ) : (
+                  <NavLink
+                    to={`/play/${genre.slug}`}
+                    className={({ isActive }) =>
+                      isActive ? "genre-link active" : "genre-link"
+                    }
+                    state={{ playlistUrn: genre.playlistUrn, urn: genre.urn }}
+                  >
+                    {genre.label}
+                  </NavLink>
+                )}
               </li>
             ))
           ) : (

@@ -10,12 +10,14 @@ interface MenuButtonProps {
   label: string;
   to: string;
   external?: boolean;
+  disabledLink?: boolean;
 }
 
 export default function MenuButton({
   label,
   to,
   external = false,
+  disabledLink = false,
 }: MenuButtonProps) {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -24,13 +26,21 @@ export default function MenuButton({
       className="button-wrapper"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      style={{ cursor: disabledLink ? "pointer" : "default" }}
     >
-      {external ? (
+      {disabledLink ? (
+        <div className="menu-button disabled">{label}</div>
+      ) : external ? (
         <a className="menu-button" href={to}>
           {label}
         </a>
       ) : (
-        <NavLink className="menu-button" to={to}>
+        <NavLink
+          to={to}
+          className={({ isActive }) =>
+            `menu-button ${isActive ? "active" : ""}`
+          }
+        >
           {label}
         </NavLink>
       )}

@@ -59,31 +59,61 @@ export default function Friends() {
     const target = searchNick.trim();
 
     if (!target || target === myNickname) {
-      alert("Nie możesz zaprosić samego siebie.");
+      alert("Nie możesz zaprosić samego siebie ani pustego nicku.");
       return;
     }
 
-    // Sprawdzenie czy gracz istnieje w rankingu/bazie
-    const { data: userExists } = await supabase
-      .from("GlobalRanking")
+    // --- ZMIANA TUTAJ ---
+    // Sprawdzamy czy gracz istnieje w tabeli PROFILES (wszyscy zarejestrowani),
+    // a nie w rankingu (tylko ci, co zagrali).
+    const { data: userExists, error: searchError } = await supabase
+      .from("Profiles")
       .select("nickname")
       .eq("nickname", target)
       .single();
 
-    if (!userExists) {
-      alert("Gracz o takim nicku nie istnieje!");
+    if (searchError || !userExists) {
+      alert("Gracz o takim nicku nie istnieje (musi się najpierw zarejestrować)!");
+      return;
+    }
+    // --------------------
+
+    // Sprawdzenie czy zaproszenie już nie istnieje
+    const { data: existing } = await supabase
+      .from("FriendRequest")
+      .select("*")
+      .or(`senderNick.eq.${myNickname},receiverNick.eq.${myNickname}`)
+      .or(`senderNick.eq.${target},receiverNick.eq.${target}`)
+      .in("status", ["PENDING", "ACCEPTED"]); // Sprawdzamy czy już nie są znajomymi lub w trakcie
+
+    // Proste filtrowanie po stronie klienta, żeby upewnić się że to ta para
+    const isAlreadyLinked = existing?.some(
+      (req) => 
+        (req.senderNick === myNickname && req.receiverNick === target) ||
+        (req.senderNick === target && req.receiverNick === myNickname)
+    );
+
+    if (isAlreadyLinked) {
+      alert("Już jesteście znajomymi lub zaproszenie oczekuje!");
       return;
     }
 
+    // Wysyłanie zaproszenia
     const { error } = await supabase.from("FriendRequest").insert([
-      { senderNick: myNickname, receiverNick: target, status: "PENDING" }
+      { 
+        senderNick: myNickname, 
+        receiverNick: target, 
+        status: "PENDING" 
+      }
     ]);
 
     if (error) {
-      alert("Zaproszenie już wysłane lub wystąpił błąd.");
+      console.error(error);
+      alert("Wystąpił błąd przy wysyłaniu.");
     } else {
-      alert("Wysłano zaproszenie!");
+      alert(`Wysłano zaproszenie do ${target}!`);
       setSearchNick("");
+      setTab("list"); // Przełącz na listę, żeby zobaczyć ew. zmiany
     }
   };
 
