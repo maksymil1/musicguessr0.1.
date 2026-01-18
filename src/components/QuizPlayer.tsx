@@ -208,7 +208,15 @@ export default function QuizPlayer({
 
         {isHost ? (
           <>
-            {mode !== "genre" && !initialQuery && (
+            {mode === "playlist" && !initialQuery && (
+              <input
+                className="p-3 rounded text-black w-64"
+                placeholder="Wklej link do playlisty..."
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+              />
+            )}
+            {mode === "artist" && !initialQuery && (
               <input
                 className="p-3 rounded text-black w-64"
                 placeholder="Wpisz np. Tame Impala..."

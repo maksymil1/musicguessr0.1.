@@ -8,7 +8,7 @@ const AudioPlayer = ({ src }: { src: string }) => {
   const { volume, isMuted } = useVolume();
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // Synchronizacja głośności: kiedy zmieniasz suwak w ustawieniach, 
+  // Synchronizacja głośności: kiedy zmieniasz suwak w ustawieniach,
   // ten efekt natychmiast aktualizuje grającą piosenkę.
   useEffect(() => {
     if (audioRef.current) {
@@ -37,7 +37,9 @@ export default function MusicPage() {
     setLoading(true);
     try {
       const res = await fetch(
-        `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=10`
+        `https://itunes.apple.com/search?term=${encodeURIComponent(
+          query
+        )}&entity=song&limit=10`
       );
       const data = await res.json();
 
@@ -61,7 +63,9 @@ export default function MusicPage() {
     <div className="ranking-master">
       <div className="ranking-card" style={{ maxWidth: "600px" }}>
         <h1 className="neon-text">MUSIC EXPLORER</h1>
-        <p className="subtitle">Próbki z iTunes - Sterowane globalną głośnością</p>
+        <p className="subtitle">
+          Próbki z iTunes - Sterowane globalną głośnością
+        </p>
 
         <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
           <input
@@ -95,17 +99,43 @@ export default function MusicPage() {
           </button>
         </div>
 
-        <div className="ranking-list" style={{ maxHeight: "400px", overflowY: "auto" }}>
+        <div
+          className="ranking-list"
+          style={{ maxHeight: "400px", overflowY: "auto" }}
+        >
           {loading ? (
             <p style={{ color: "white" }}>Szukanie...</p>
           ) : (
             results.map((track) => (
-              <div key={track.id} className="ranking-row" style={{ display: "flex", alignItems: "center", gap: "15px", padding: "10px" }}>
-                <img src={track.albumArt} alt="Cover" style={{ width: "50px", borderRadius: "5px" }} />
+              <div
+                key={track.id}
+                className="ranking-row"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "15px",
+                  padding: "10px",
+                }}
+              >
+                <img
+                  src={track.albumArt}
+                  alt="Cover"
+                  style={{ width: "50px", borderRadius: "5px" }}
+                />
                 <div style={{ flex: 1, textAlign: "left" }}>
-                  <div style={{ color: "#4ade80", fontWeight: "bold", fontSize: "0.9rem" }}>{track.name}</div>
-                  <div style={{ fontSize: "0.7rem", color: "#888" }}>{track.artist}</div>
-                  
+                  <div
+                    style={{
+                      color: "#4ade80",
+                      fontWeight: "bold",
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    {track.name}
+                  </div>
+                  <div style={{ fontSize: "0.7rem", color: "#888" }}>
+                    {track.artist}
+                  </div>
+
                   {/* Używamy naszego nowego odtwarzacza podpiętego pod Context */}
                   <AudioPlayer src={track.preview_url} />
                 </div>
@@ -114,7 +144,7 @@ export default function MusicPage() {
           )}
         </div>
 
-        <div className="nav-footer">
+        <div>
           <MenuButton label="POWROT" to="/" external={false} />
         </div>
       </div>

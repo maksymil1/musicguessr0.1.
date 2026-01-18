@@ -1,12 +1,12 @@
-// src/pages/MultiplayerGame.tsx
 import { useEffect, useState } from "react";
 import { useParams, Navigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import QuizPlayer from "../components/QuizPlayer";
 import GameModes from "./GameModes/GameModes";
 import Genres from "./GameModes/Genres";
+import ChatWindow from "../components/ChatWindow";
 import type { GameMode } from "../types/types";
-import "../pages/home.css"; // Style
+import "../pages/home.css";
 
 export default function MultiplayerGame() {
   const { roomId } = useParams();
@@ -14,23 +14,22 @@ export default function MultiplayerGame() {
   if (!roomId) {
     return <Navigate to="/" replace />;
   }
+
+  const myNickname = localStorage.getItem("myNickname") || "Anon";
   const myPlayerId = localStorage.getItem("myPlayerId");
 
   const [isHost, setIsHost] = useState(false);
 
-  // Stan pokoju (pobierany z bazy)
   const [roomState, setRoomState] = useState<{
     gameMode: GameMode | null;
     gameQuery: string | null;
   }>({ gameMode: null, gameQuery: null });
 
-  // Stan lokalny Hosta (do nawigacji po menu)
   const [hostStep, setHostStep] = useState<"MODES" | "GENRES">("MODES");
 
   useEffect(() => {
     if (!roomId) return;
 
-    // 1. Sprawdź czy jestem Hostem
     const checkHost = async () => {
       const { data } = await supabase
         .from("Player")
@@ -41,7 +40,6 @@ export default function MultiplayerGame() {
     };
     checkHost();
 
-    // 2. Pobierz stan początkowy
     const fetchRoomState = async () => {
       const { data } = await supabase
         .from("Room")
@@ -56,7 +54,6 @@ export default function MultiplayerGame() {
     };
     fetchRoomState();
 
-    // 3. Nasłuchuj zmian
     const channel = supabase
       .channel(`game-state-${roomId}`)
       .on(
@@ -84,77 +81,118 @@ export default function MultiplayerGame() {
     };
   }, [roomId, myPlayerId]);
 
-  // --- LOGIKA HOSTA ---
-
-  // 1. Host wybiera tryb
+  // LOGIKA HOSTA
   const handleHostSelectMode = (mode: GameMode) => {
     if (mode === "genre") {
-      // Jeśli gatunek -> przejdź do ekranu wyboru gatunków (lokalnie)
       setHostStep("GENRES");
     } else {
-      // Jeśli Artysta/Playlista -> Zapisz w bazie (QuizPlayer się uruchomi, a w nim pole tekstowe)
-      updateRoomAndStart(mode, ""); // Query puste, bo Host wpisze je w QuizPlayerze
+      updateRoomAndStart(mode, "");
     }
   };
 
-  // 2. Host wybiera konkretny gatunek
   const handleHostSelectGenre = (playlistUrn: string) => {
-    // Gatunek wybrany -> Zapisz w bazie (start gry)
     updateRoomAndStart("genre", playlistUrn);
   };
 
-  // Funkcja wysyłająca start do bazy
   const updateRoomAndStart = async (mode: GameMode, query: string) => {
-    if (!roomId) return;
     await supabase
       .from("Room")
-      .update({
-        gameMode: mode,
-        gameQuery: query,
-      })
+      .update({ gameMode: mode, gameQuery: query })
       .eq("id", roomId);
   };
 
-  // --- RENDEROWANIE ---
+  // --- HELPER: CZY GRA JUŻ TRWA? ---
+  // Jeśli roomState.gameMode jest ustawione, to znaczy że Host wybrał tryb i gramy.
+  const isGameActive = !!roomState.gameMode;
 
-  // A. Gra wystartowała (jest tryb w bazie) -> Pokaż QuizPlayer
-  if (roomState.gameMode) {
-    return (
-      <QuizPlayer
-        mode={roomState.gameMode}
-        roomId={roomId}
-        isHost={isHost}
-        initialQuery={roomState.gameQuery || undefined} // Przekazujemy zapytanie (np. urn playlisty)
-      />
-    );
-  }
-
-  // B. Gra nie wystartowała -> Menu wyboru (Dla Hosta)
-  if (isHost) {
-    if (hostStep === "GENRES") {
+  // --- RENDEROWANIE TREŚCI GRY (Lewa strona) ---
+  const renderGameContent = () => {
+    // 1. Gra trwa -> QuizPlayer
+    if (isGameActive) {
       return (
-        <div className="flex justify-center pt-10 min-h-screen bg-gray-900">
-          <Genres onGenreSelect={handleHostSelectGenre} />
-          {/* Przycisk powrotu */}
-          <button
-            onClick={() => setHostStep("MODES")}
-            className="fixed top-4 left-4 text-white underline"
-          >
-            ← Wróć do trybów
-          </button>
-        </div>
+        <QuizPlayer
+          mode={roomState.gameMode!}
+          roomId={roomId}
+          isHost={isHost}
+          initialQuery={roomState.gameQuery || undefined}
+        />
       );
     }
-    // Domyślnie: GameModes
-    return <GameModes onModeSelect={handleHostSelectMode} />;
-  }
 
-  // C. Gra nie wystartowała -> Ekran czekania (Dla Gościa)
+    // 2. Host wybiera -> Menu
+    if (isHost) {
+      if (hostStep === "GENRES") {
+        return (
+          <div className="w-full flex flex-col items-center">
+            <button
+              onClick={() => setHostStep("MODES")}
+              className="mb-4 text-white underline self-start"
+            >
+              ← Wróć
+            </button>
+            <Genres onGenreSelect={handleHostSelectGenre} />
+          </div>
+        );
+      }
+      return <GameModes onModeSelect={handleHostSelectMode} />;
+    }
+
+    // 3. Gość czeka
+    return (
+      <div className="flex flex-col items-center justify-center text-white">
+        <div className="animate-spin h-10 w-10 border-4 border-green-500 rounded-full border-t-transparent mb-4"></div>
+        <h2 className="text-2xl font-bold">OCZEKIWANIE NA HOSTA...</h2>
+        <p className="text-gray-400">Host wybiera tryb gry.</p>
+      </div>
+    );
+  };
+
+  // --- GŁÓWNY LAYOUT ---
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-black text-white">
-      <div className="animate-spin h-10 w-10 border-4 border-green-500 rounded-full border-t-transparent mb-4"></div>
-      <h2 className="text-2xl font-bold">OCZEKIWANIE NA HOSTA...</h2>
-      <p className="text-gray-400">Host wybiera tryb gry.</p>
+    <div
+      className="master"
+      style={{
+        height: "100vh",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          width: "100%",
+          // Jeśli gra trwa: szeroko (na czat), jeśli menu: węziej (żeby ładnie wyglądało)
+          maxWidth: isGameActive ? "1200px" : "800px",
+          margin: "0 auto",
+          height: "100%",
+          padding: "20px",
+          gap: "20px",
+          // Jeśli menu (brak czatu), wyśrodkuj zawartość
+          justifyContent: isGameActive ? "flex-start" : "center",
+        }}
+      >
+        {/* LEWA KOLUMNA - GRA / MENU */}
+        <div
+          style={{
+            // Jeśli gra trwa: flex 3 (70%), jeśli menu: flex 1 (100% szerokości kontenera)
+            flex: isGameActive ? 3 : 1,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            position: "relative",
+          }}
+        >
+          {renderGameContent()}
+        </div>
+
+        {/* PRAWA KOLUMNA - CZAT (Tylko gdy gra jest aktywna) */}
+        {isGameActive && (
+          <div style={{ flex: 1, minWidth: "300px", height: "100%" }}>
+            <ChatWindow roomId={roomId} nickname={myNickname} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

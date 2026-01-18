@@ -1,6 +1,5 @@
 import { Outlet } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
-import { useState } from "react"; // Potrzebne do obsługi menu ustawień
 import Settings from "./components/Settings"; // Importujemy nowy komponent
 import "./App.css";
 
