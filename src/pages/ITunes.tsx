@@ -1,45 +1,40 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import MenuButton from "../components/MenuButton/MenuButton.tsx";
-import { useVolume } from "../context/VolumeContext"; // Importujemy głośność
 import "./Ranking.css";
 
-// Pomocniczy komponent dla pojedynczego odtwarzacza, aby lepiej kontrolować głośność
-const AudioPlayer = ({ src }: { src: string }) => {
-  const { volume, isMuted } = useVolume();
-  const audioRef = useRef<HTMLAudioElement>(null);
-
-  // Synchronizacja głośności: kiedy zmieniasz suwak w ustawieniach,
-  // ten efekt natychmiast aktualizuje grającą piosenkę.
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume / 100;
-    }
-  }, [volume, isMuted]);
-
-  return (
-    <audio
-      ref={audioRef}
-      controls
-      src={src}
-      className="custom-audio-player"
-      style={{ width: "100%", height: "30px", marginTop: "8px" }}
-    />
-  );
-};
+type SearchCategory = "popular" | "artist" | "genre" | "years";
 
 export default function MusicPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [category, setCategory] = useState<SearchCategory>("popular");
 
   const search = async () => {
-    if (!query) return;
     setLoading(true);
     try {
+      let searchTerm = "";
+
+      // Logika budowania zapytania na podstawie kategorii
+      if (category === "popular") {
+        searchTerm = query ? `${query} top hits` : "top charts hits";
+      } else if (category === "artist") {
+        searchTerm = query;
+      } else if (category === "genre") {
+        searchTerm = `${query} hits`;
+      } else if (category === "years") {
+        searchTerm = `${query} hits`;
+      }
+
+      if (!searchTerm) {
+        setLoading(false);
+        return;
+      }
+
       const res = await fetch(
         `https://itunes.apple.com/search?term=${encodeURIComponent(
-          query
-        )}&entity=song&limit=10`
+          searchTerm
+        )}&entity=song&limit=20`
       );
       const data = await res.json();
 
@@ -61,18 +56,88 @@ export default function MusicPage() {
 
   return (
     <div className="ranking-master">
-      <div className="ranking-card" style={{ maxWidth: "600px" }}>
+      <div
+        className="ranking-card"
+        style={{ maxWidth: "600px", minHeight: "650px" }}
+      >
         <h1 className="neon-text">MUSIC EXPLORER</h1>
-        <p className="subtitle">
-          Próbki z iTunes - Sterowane globalną głośnością
-        </p>
+        <p className="subtitle">Przeglądaj bazę iTunes - Bez logowania</p>
+
+        {/* Selektor kategorii */}
+        <div
+          className="category-grid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "10px",
+            marginBottom: "20px",
+          }}
+        >
+          <button
+            onClick={() => setCategory("popular")}
+            className={category === "popular" ? "btn-active" : "btn-off"}
+            style={{
+              padding: "10px",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "bold",
+            }}
+          >
+            POPULARNE
+          </button>
+          <button
+            onClick={() => setCategory("artist")}
+            className={category === "artist" ? "btn-active" : "btn-off"}
+            style={{
+              padding: "10px",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "bold",
+            }}
+          >
+            ARTYSTA
+          </button>
+          <button
+            onClick={() => setCategory("genre")}
+            className={category === "genre" ? "btn-active" : "btn-off"}
+            style={{
+              padding: "10px",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "bold",
+            }}
+          >
+            GATUNEK
+          </button>
+          <button
+            onClick={() => setCategory("years")}
+            className={category === "years" ? "btn-active" : "btn-off"}
+            style={{
+              padding: "10px",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "bold",
+            }}
+          >
+            LATA
+          </button>
+        </div>
 
         <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
           <input
             type="text"
-            placeholder="Wpisz wykonawcę lub tytuł..."
+            placeholder={
+              category === "artist"
+                ? "Wpisz artystę..."
+                : category === "genre"
+                ? "Wpisz gatunek (np. Rock)..."
+                : category === "years"
+                ? "Wpisz rok/dekadę (np. 1990)..."
+                : "Wyszukaj hity..."
+            }
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && search()}
             style={{
               flex: 1,
               padding: "12px",
@@ -84,7 +149,6 @@ export default function MusicPage() {
           />
           <button
             onClick={search}
-            className="search-btn"
             style={{
               background: "#4ade80",
               color: "black",
@@ -101,11 +165,11 @@ export default function MusicPage() {
 
         <div
           className="ranking-list"
-          style={{ maxHeight: "400px", overflowY: "auto" }}
+          style={{ maxHeight: "350px", overflowY: "auto" }}
         >
           {loading ? (
-            <p style={{ color: "white" }}>Szukanie...</p>
-          ) : (
+            <p>Szukanie...</p>
+          ) : results.length > 0 ? (
             results.map((track) => (
               <div
                 key={track.id}
@@ -115,6 +179,9 @@ export default function MusicPage() {
                   alignItems: "center",
                   gap: "15px",
                   padding: "10px",
+                  background: "rgba(255,255,255,0.05)",
+                  marginBottom: "10px",
+                  borderRadius: "12px",
                 }}
               >
                 <img
@@ -135,19 +202,30 @@ export default function MusicPage() {
                   <div style={{ fontSize: "0.7rem", color: "#888" }}>
                     {track.artist}
                   </div>
-
-                  {/* Używamy naszego nowego odtwarzacza podpiętego pod Context */}
-                  <AudioPlayer src={track.preview_url} />
+                  <audio
+                    controls
+                    src={track.preview_url}
+                    style={{ width: "100%", height: "30px", marginTop: "8px" }}
+                  />
                 </div>
               </div>
             ))
+          ) : (
+            <p style={{ color: "#555", marginTop: "20px" }}>
+              Wpisz coś i kliknij szukaj...
+            </p>
           )}
         </div>
 
         <div>
-          <MenuButton label="POWROT" to="/" external={false} />
+          <MenuButton label="BACK" to="/" external={false} />
         </div>
       </div>
+
+      <style>{`
+        .btn-active { background: #4ade80; color: #000; border: none; }
+        .btn-off { background: #222; color: #fff; border: 1px solid #444; }
+      `}</style>
     </div>
   );
 }

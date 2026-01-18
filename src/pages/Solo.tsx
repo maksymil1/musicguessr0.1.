@@ -1,17 +1,17 @@
 import { useState, useEffect, useRef } from "react";
 import MenuButton from "../components/MenuButton/MenuButton.tsx";
-import { useVolume } from "../context/VolumeContext"; // KROK 1: Importujemy głośność
 import "./Ranking.css";
 
 const LEVELS = [0.1, 0.5, 1, 3, 7, 15, 30];
 
 export default function Solo() {
-  const { volume, isMuted } = useVolume(); // KROK 2: Pobieramy globalne wartości
   const [targetTrack, setTargetTrack] = useState<any>(null);
   const [gameState, setGameState] = useState<"setup" | "playing" | "result">(
     "setup"
   );
-  const [category, setCategory] = useState<any>("popular");
+  const [category, setCategory] = useState<
+    "popular" | "artist" | "genre" | "years"
+  >("popular");
   const [subValue, setSubValue] = useState("");
 
   const [currentAttempt, setCurrentAttempt] = useState(0);
@@ -23,13 +23,6 @@ export default function Solo() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [feedback, setFeedback] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // KROK 3: Synchronizacja głośności z ustawieniami
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume / 100;
-    }
-  }, [volume, isMuted]);
 
   const normalizeText = (text: string) =>
     text
@@ -60,10 +53,16 @@ export default function Solo() {
     setFeedback("");
 
     try {
-      let term = category === "popular" ? "top charts hits" : subValue;
+      let searchTerm = "";
+      // Dynamiczne budowanie zapytania na podstawie wybranej kategorii
+      if (category === "popular") searchTerm = "top charts hits";
+      else if (category === "artist") searchTerm = subValue;
+      else if (category === "genre") searchTerm = subValue + " hits";
+      else if (category === "years") searchTerm = subValue + " hits";
+
       const res = await fetch(
         `https://itunes.apple.com/search?term=${encodeURIComponent(
-          term
+          searchTerm
         )}&entity=song&limit=200`
       );
       const data = await res.json();
@@ -76,7 +75,8 @@ export default function Solo() {
           name.includes("edit") ||
           name.includes("live") ||
           name.includes("version") ||
-          name.includes("tribute");
+          name.includes("tribute") ||
+          name.includes("instrumental");
         return !playedIds.includes(t.trackId) && !isForbidden;
       });
 
@@ -87,8 +87,9 @@ export default function Solo() {
       }
 
       const track = available[Math.floor(Math.random() * available.length)];
-      if (!track)
-        return alert("Brak nowych, oryginalnych utworów! Zmień tryb.");
+      if (!track) return alert("Brak nowych utworów w tej kategorii!");
+
+      console.log("DEBUG - POPRAWNA ODPOWIEDŹ:", track.trackName);
 
       setTargetTrack({
         id: track.trackId,
@@ -97,6 +98,7 @@ export default function Solo() {
           .split("(")[0]
           .split("[")[0]
           .split("feat")[0]
+          .split("ft.")[0]
           .trim(),
         artist: track.artistName,
         preview: track.previewUrl,
@@ -122,7 +124,8 @@ export default function Solo() {
     const isCorrect =
       normGuess === normFull ||
       normGuess === normClean ||
-      normFull.startsWith(normGuess);
+      normFull.startsWith(normGuess) ||
+      normClean.startsWith(normGuess);
 
     if (isCorrect) {
       setGameState("result");
@@ -133,7 +136,7 @@ export default function Solo() {
       setSuggestions([]);
       if (currentAttempt < LEVELS.length - 1) {
         setCurrentAttempt((prev) => prev + 1);
-        setFeedback("Źle! Kolejny poziom.");
+        setFeedback("Źle! Czas zwiększony.");
       } else {
         setGameState("result");
         setFeedback("GAME OVER");
@@ -144,10 +147,6 @@ export default function Solo() {
   const playPreview = () => {
     if (!audioRef.current || isPlaying) return;
     setIsPlaying(true);
-
-    // KROK 4: Upewniamy się, że głośność jest poprawna w momencie startu
-    audioRef.current.volume = isMuted ? 0 : volume / 100;
-
     audioRef.current.currentTime = 0;
     audioRef.current.play();
     setTimeout(() => {
@@ -176,18 +175,43 @@ export default function Solo() {
               }}
             >
               <button
-                onClick={() => setCategory("popular")}
+                onClick={() => {
+                  setCategory("popular");
+                  setSubValue("");
+                }}
                 className={category === "popular" ? "btn-active" : "btn-off"}
               >
                 TOP HITS
               </button>
               <button
-                onClick={() => setCategory("artist")}
+                onClick={() => {
+                  setCategory("artist");
+                  setSubValue("");
+                }}
                 className={category === "artist" ? "btn-active" : "btn-off"}
               >
                 ARTIST
               </button>
+              <button
+                onClick={() => {
+                  setCategory("genre");
+                  setSubValue("");
+                }}
+                className={category === "genre" ? "btn-active" : "btn-off"}
+              >
+                GENRE
+              </button>
+              <button
+                onClick={() => {
+                  setCategory("years");
+                  setSubValue("");
+                }}
+                className={category === "years" ? "btn-active" : "btn-off"}
+              >
+                YEARS
+              </button>
             </div>
+
             {category === "artist" && (
               <input
                 type="text"
@@ -197,6 +221,53 @@ export default function Solo() {
                 className="invite-form-input"
               />
             )}
+
+            {category === "genre" && (
+              <select
+                value={subValue}
+                onChange={(e) => setSubValue(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  background: "#111",
+                  color: "#fff",
+                  border: "1px solid #4ade80",
+                  borderRadius: "10px",
+                }}
+              >
+                <option value="">Wybierz gatunek...</option>
+                <option value="Rock">Rock</option>
+                <option value="Pop">Pop</option>
+                <option value="Hip-Hop">Hip-Hop</option>
+                <option value="R&B">R&B</option>
+                <option value="Electronic">Electronic</option>
+                <option value="Jazz">Jazz</option>
+              </select>
+            )}
+
+            {category === "years" && (
+              <select
+                value={subValue}
+                onChange={(e) => setSubValue(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  background: "#111",
+                  color: "#fff",
+                  border: "1px solid #4ade80",
+                  borderRadius: "10px",
+                }}
+              >
+                <option value="">Wybierz lata...</option>
+                <option value="1970">Lata 70s</option>
+                <option value="1980">Lata 80s</option>
+                <option value="1990">Lata 90s</option>
+                <option value="2000">Lata 2000s</option>
+                <option value="2010">Lata 2010s</option>
+                <option value="2020">Lata 2020s</option>
+              </select>
+            )}
+
             <button
               onClick={() => fetchTrack()}
               className="menu-button"
@@ -266,7 +337,7 @@ export default function Solo() {
             <div style={{ position: "relative", marginTop: "20px" }}>
               <input
                 type="text"
-                placeholder="Wpisz tytuł..."
+                placeholder="Znasz tytuł?"
                 value={guess}
                 onChange={(e) => setGuess(e.target.value)}
                 autoComplete="off"
