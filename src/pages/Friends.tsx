@@ -16,7 +16,7 @@ interface FriendRequest {
   friendStats?: {
     guessed_percentage: number;
     games_played: number;
-    multi_points: number; // NOWE POLE
+    multi_points: number; // To są punkty z bazy Profiles
   };
 }
 
@@ -64,36 +64,26 @@ export default function Friends() {
           f.senderNick === myNickname ? f.receiverNick : f.senderNick
         );
 
-        // A. Pobierz SINGLEPLAYER (z Profiles)
+        // A. Pobierz WSZYSTKO z Profiles (Single + Multi points)
+        // ZMIANA: Dodano 'points' do zapytania i usunięto pobieranie z Player
         const { data: profilesData } = await supabase
           .from("Profiles")
-          .select("nickname, guessed_percentage, games_played")
-          .in("nickname", friendNicknames);
-
-        // B. Pobierz MULTIPLAYER (z tabeli Player - historia gier)
-        const { data: multiData } = await supabase
-          .from("Player")
-          .select("nickname, score")
+          .select("nickname, guessed_percentage, games_played, points")
           .in("nickname", friendNicknames);
 
         // Łączenie danych
         enrichedFriends = friendsData.map(f => {
           const friendNick = f.senderNick === myNickname ? f.receiverNick : f.senderNick;
           
-          // Dane Single
+          // Znajdź profil znajomego
           const profileStats = profilesData?.find(p => p.nickname === friendNick);
           
-          // Dane Multi (sumowanie punktów)
-          const totalMultiPoints = multiData
-            ?.filter(m => m.nickname === friendNick)
-            .reduce((acc, curr) => acc + (curr.score || 0), 0) || 0;
-
           return {
             ...f,
             friendStats: profileStats ? {
-              guessed_percentage: profileStats.guessed_percentage,
-              games_played: profileStats.games_played,
-              multi_points: totalMultiPoints // Dodajemy sumę punktów
+              guessed_percentage: profileStats.guessed_percentage || 0,
+              games_played: profileStats.games_played || 0,
+              multi_points: profileStats.points || 0 // ZMIANA: Bierzemy gotowe punkty z bazy
             } : undefined
           };
         });
@@ -170,7 +160,7 @@ export default function Friends() {
     <div className="friends-container-pro">
       <div className="friends-glass-box">
         <h2 className="neon-text">ZALOGUJ SIĘ</h2>
-        <MenuButton label="BACK TO MENU" to="/" />
+        <MenuButton label="BACK TO MENU" to="/" external={false} />
       </div>
     </div>
   );
@@ -227,7 +217,7 @@ export default function Friends() {
                                   🎯 <span style={{ color: '#4ade80', fontWeight: 'bold' }}>{f.friendStats.guessed_percentage}%</span>
                                 </span>
 
-                                {/* MULTIPLAYER - PUNKTY */}
+                                {/* MULTIPLAYER - PUNKTY (TERAZ POPRAWNE) */}
                                 <span title="Punkty Multiplayer (Złoty)" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                   🌐 <span style={{ color: '#facc15', fontWeight: 'bold' }}>{f.friendStats.multi_points}</span>
                                 </span>

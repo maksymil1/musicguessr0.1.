@@ -1,12 +1,26 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["public"]
+}
+
+// --- MODELE APLIKACJI (PUBLIC) ---
+
 model Profile {
-  id                String   @id @db.Uuid // Musi pasować do typu AuthUser.id
-  email             String   @unique
-  nickname          String   @unique
-  games_played      Int      @default(0)
-  points            Int      @default(0)
-  guessed_percentage Int      @default(0)
-  createdAt         DateTime @default(now())
-  ranking           GlobalRanking?
+  id                 String         @id @db.Uuid // Powiązane z auth.users.id
+  email              String         @unique
+  nickname           String         @unique
+  games_played       Int            @default(0)
+  points             Int            @default(0) // Punkty z MULTIPLAYER
+  guessed_percentage Int            @default(0) // Skuteczność z SINGLEPLAYER
+  createdAt          DateTime       @default(now())
+  ranking            GlobalRanking?
 
   @@map("Profiles")
   @@schema("public")
@@ -18,8 +32,14 @@ model Room {
   status           String    @default("WAITING")
   currentSongStart DateTime?
   createdAt        DateTime  @default(now())
-  players          Player[]
-  messages         Message[]
+  gameMode         String? // Opcjonalnie: 'classic' | 'genre'
+  gameQuery        String? // Np. nazwa playlisty lub artysty
+  currentRound     Int       @default(0)
+  // Jeśli przechowujesz kolejkę piosenek w bazie, możesz dodać pole Json:
+  // gameQueue        Json?     
+
+  players  Player[]
+  messages Message[]
 
   @@schema("public")
 }
@@ -27,7 +47,7 @@ model Room {
 model Player {
   id        String   @id @default(uuid())
   nickname  String
-  score     Int      @default(0)
+  score     Int      @default(0) // Punkty tymczasowe w lobby
   isHost    Boolean  @default(false)
   roomId    String
   room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
@@ -48,9 +68,9 @@ model Message {
 }
 
 model Friend {
-  id        String   @id @default(uuid())
-  nickname  String   @unique
-  addedAt   DateTime @default(now())
+  id       String   @id @default(uuid())
+  nickname String   @unique
+  addedAt  DateTime @default(now())
 
   @@schema("public")
 }

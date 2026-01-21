@@ -78,7 +78,7 @@ export default function Lobby() {
           table: "Player",
           filter: `roomId=eq.${roomId}`,
         },
-        () => fetchPlayers()
+        () => fetchPlayers(),
       )
       .on(
         "postgres_changes",
@@ -90,7 +90,7 @@ export default function Lobby() {
         },
         (payload) => {
           if (payload.new.status === "PLAYING") navigate(`/game/${roomId}`);
-        }
+        },
       )
       .on(
         "postgres_changes",
@@ -103,7 +103,7 @@ export default function Lobby() {
         () => {
           alert("Lobby closed!");
           navigate("/");
-        }
+        },
       )
       .subscribe();
 
@@ -234,7 +234,14 @@ export default function Lobby() {
 
           {/* PRAWA STRONA: CZAT (Nowy Komponent) */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-            {roomId && <ChatWindow roomId={roomId} nickname={myNickname} />}
+            {roomId && (
+              <ChatWindow
+                roomId={roomId}
+                nickname={myNickname}
+                currentTrack={null}
+                roundStartTime={null}
+              />
+            )}
           </div>
         </div>
 

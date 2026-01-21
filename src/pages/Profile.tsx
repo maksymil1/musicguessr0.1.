@@ -3,21 +3,20 @@ import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import MenuButton from "../components/MenuButton/MenuButton.tsx";
 import { motion } from "framer-motion";
-import "./Ranking.css"; // WAŻNE: To importuje wspólne style i tło
+import "./Ranking.css";
 
 export default function Profile() {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
   
   const [soloStats, setSoloStats] = useState({
+    percentage: 0, // Tylko procenty dla Solo
     games: 0,
-    percentage: 0,
     joinedAt: "",
   });
 
   const [multiStats, setMultiStats] = useState({
-    games: 0,
-    totalPoints: 0,
+    totalPoints: 0, // Punkty tylko dla Multi
+    games: 0,       // Możemy tu wyświetlać te same gry co w solo lub dodać osobny licznik w bazie
   });
 
   useEffect(() => {
@@ -25,42 +24,31 @@ export default function Profile() {
       if (!user) return;
 
       try {
-        const myNick = user.user_metadata?.nickname;
-
-        // 1. SINGLEPLAYER
-        const { data: profileData } = await supabase
+        // Pobieramy dane z TRWAŁEJ tabeli Profiles
+        const { data: profileData, error } = await supabase
           .from("Profiles")
-          .select("games_played, guessed_percentage, createdAt")
+          .select("games_played, guessed_percentage, points, createdAt")
           .eq("id", user.id)
           .single();
 
+        if (error) throw error;
+
         if (profileData) {
+          // 1. STATYSTYKI SOLO (Tylko skuteczność %)
           setSoloStats({
-            games: profileData.games_played || 0,
             percentage: profileData.guessed_percentage || 0,
+            games: profileData.games_played || 0,
             joinedAt: new Date(profileData.createdAt).toLocaleDateString(),
           });
-        }
 
-        // 2. MULTIPLAYER
-        if (myNick) {
-          const { data: lobbyData } = await supabase
-            .from("Player")
-            .select("score")
-            .eq("nickname", myNick);
-
-          if (lobbyData) {
-            const totalScore = lobbyData.reduce((acc, curr) => acc + (curr.score || 0), 0);
-            setMultiStats({
-              games: lobbyData.length,
-              totalPoints: totalScore,
-            });
-          }
+          // 2. STATYSTYKI MULTI (Punkty z wszystkich gier lobby)
+          setMultiStats({
+            totalPoints: profileData.points || 0, // To pole magazynuje punkty z multi
+            games: profileData.games_played || 0,
+          });
         }
       } catch (err) {
-        console.error("Błąd profilu:", err);
-      } finally {
-        setLoading(false);
+        console.error("Błąd pobierania profilu:", err);
       }
     };
 
@@ -70,34 +58,21 @@ export default function Profile() {
   if (!user) return null;
 
   return (
-    // UŻYWAMY KLASY ranking-master ŻEBY MIEĆ TO SAMO TŁO CO RESZTA
     <div className="ranking-master">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="ranking-card" // Styl szklanej karty
-        style={{ 
-          maxWidth: "800px", // Szersza karta żeby zmieścić dwie kolumny
-          width: "95%",
-          padding: "40px"
-        }}
+        className="ranking-card"
+        style={{ maxWidth: "800px", width: "95%", padding: "40px" }}
       >
         {/* NAGŁÓWEK */}
         <div style={{ marginBottom: "40px", textAlign: "center" }}>
           <div
             style={{
-              width: "100px",
-              height: "100px",
-              borderRadius: "50%",
-              background: "#4ade80",
-              color: "black",
-              fontSize: "3rem",
-              fontWeight: "bold",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              margin: "0 auto 20px auto",
-              boxShadow: "0 0 25px #4ade80",
+              width: "100px", height: "100px", borderRadius: "50%", background: "#4ade80",
+              color: "black", fontSize: "3rem", fontWeight: "bold",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              margin: "0 auto 20px auto", boxShadow: "0 0 25px #4ade80",
             }}
           >
             {user.user_metadata?.nickname?.[0]?.toUpperCase() || "U"}
@@ -110,12 +85,13 @@ export default function Profile() {
           </p>
         </div>
 
-        {/* DWIE KOLUMNY STATYSTYK */}
+        {/* DWIE OSOBNE SEKCJE: SOLO (Skuteczność) i MULTI (Punkty) */}
         <div className="stats-grid">
-          {/* KAFELEK SINGLE */}
+          
+          {/* KAFELEK SOLO - TYLKO PROCENTY */}
           <div style={statCardStyle}>
             <h2 style={{ color: "#4ade80", borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: "10px", marginTop: 0 }}>
-              👤 SINGLE
+              👤 SOLO
             </h2>
             <div style={{ marginTop: "20px" }}>
               <p style={{ color: "#aaa", fontSize: "0.8rem", marginBottom: "5px" }}>SKUTECZNOŚĆ</p>
@@ -123,26 +99,25 @@ export default function Profile() {
                 {soloStats.percentage}%
               </div>
             </div>
-            <div style={{ marginTop: "15px" }}>
-              <p style={{ color: "#aaa", fontSize: "0.8rem", marginBottom: "5px" }}>GRY</p>
-              <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>{soloStats.games}</div>
+            {/* Opcjonalnie liczba gier */}
+            <div style={{ marginTop: "10px", fontSize: "0.9rem", color: "#888" }}>
+              Rozegrane gry: {soloStats.games}
             </div>
           </div>
 
-          {/* KAFELEK MULTI */}
+          {/* KAFELEK MULTI - TYLKO PUNKTY */}
           <div style={statCardStyle}>
             <h2 style={{ color: "#facc15", borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: "10px", marginTop: 0 }}>
-              🌐 MULTI
+              🌐 MULTIPLAYER
             </h2>
             <div style={{ marginTop: "20px" }}>
-              <p style={{ color: "#aaa", fontSize: "0.8rem", marginBottom: "5px" }}>PUNKTY</p>
+              <p style={{ color: "#aaa", fontSize: "0.8rem", marginBottom: "5px" }}>TOTAL SCORE</p>
               <div style={{ fontSize: "2.5rem", fontWeight: "bold", color: "#facc15" }}>
                 {multiStats.totalPoints}
               </div>
             </div>
-            <div style={{ marginTop: "15px" }}>
-              <p style={{ color: "#aaa", fontSize: "0.8rem", marginBottom: "5px" }}>MECZE</p>
-              <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>{multiStats.games}</div>
+             <div style={{ marginTop: "10px", fontSize: "0.9rem", color: "#888" }}>
+               Punkty zdobyte w lobby
             </div>
           </div>
         </div>
@@ -152,28 +127,15 @@ export default function Profile() {
         </div>
       </motion.div>
 
-      {/* STYLE WEWNĘTRZNE + RESPANSYWNOŚĆ */}
       <style>{`
-        .stats-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 20px;
-          text-align: left;
-        }
-        @media (max-width: 600px) {
-          .stats-grid {
-            grid-template-columns: 1fr; /* Na telefonie jeden pod drugim */
-          }
-        }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left; }
+        @media (max-width: 600px) { .stats-grid { grid-template-columns: 1fr; } }
       `}</style>
     </div>
   );
 }
 
 const statCardStyle: React.CSSProperties = {
-  background: "rgba(0,0,0,0.4)",
-  padding: "25px",
-  borderRadius: "15px",
-  border: "1px solid rgba(255,255,255,0.1)",
-  boxShadow: "inset 0 0 20px rgba(0,0,0,0.5)"
+  background: "rgba(0,0,0,0.4)", padding: "25px", borderRadius: "15px",
+  border: "1px solid rgba(255,255,255,0.1)", boxShadow: "inset 0 0 20px rgba(0,0,0,0.5)"
 };
