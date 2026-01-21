@@ -1,22 +1,50 @@
-import { useState } from "react";
-import { useVolume } from "../context/VolumeContext"; // Importujemy globalny stan dźwięku
+import { useState, useRef } from "react";
+import { useVolume } from "../context/VolumeContext";
 
 export default function Settings() {
-  // Stan lokalny tylko dla otwierania menu i efektu najechania
   const [isOpen, setIsOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
   // Wyciągamy globalne wartości głośności z Contextu
   const { volume, setVolume, isMuted, setIsMuted } = useVolume();
 
+  // Ref do przechowywania licznika czasu (naprawiony typ dla TypeScript)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Funkcja obsługująca wejście myszki na obszar ustawień
+  const handleMouseEnter = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsOpen(true);
+    setIsHovered(true);
+  };
+
+  // Funkcja obsługująca zjazd myszki - zamyka po 167ms
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    timerRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 167);
+  };
+
   return (
-    <div style={{ position: 'fixed', top: '25px', left: '25px', zIndex: 9999 }}>
+    <div 
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      style={{ 
+        position: 'fixed', 
+        top: '25px', 
+        left: '25px', 
+        zIndex: 9999,
+        paddingBottom: '20px' // Bufor bezpieczeństwa pod przyciskiem
+      }}
+    >
       
       {/* PRZYCISK ZĘBATKI */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
         style={{
           background: isHovered || isOpen ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.5)',
           backdropFilter: 'blur(12px)',
@@ -62,7 +90,6 @@ export default function Settings() {
           <div style={{ marginBottom: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '0.8rem', opacity: 0.8 }}>
               <span style={{display:'flex', alignItems:'center', gap:'5px'}}>🔊 Głośność</span>
-              {/* Wyświetlamy 0 jeśli wyciszone, w innym wypadku wartość z contextu */}
               <span style={{fontWeight:'bold'}}>{isMuted ? 0 : volume}%</span>
             </div>
             <input 
@@ -72,7 +99,7 @@ export default function Settings() {
               value={isMuted ? 0 : volume} 
               onChange={(e) => {
                 setVolume(Number(e.target.value));
-                if (isMuted) setIsMuted(false); // Automatycznie odwycisz przy zmianie suwaka
+                if (isMuted) setIsMuted(false);
               }}
               style={{ width: '100%', cursor: 'pointer', accentColor: '#4ade80' }}
             />
@@ -95,7 +122,7 @@ export default function Settings() {
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
             }}
           >
-            {isMuted ? <span>🔇 ODWYCISZ</span> : <span>🔊 WYCISZ CAŁKOWICIE</span>}
+            {isMuted ? <span>🔇WYŁĄCZ WYCISZENIE</span> : <span>🔊WYCISZ</span>}
           </button>
         </div>
       )}

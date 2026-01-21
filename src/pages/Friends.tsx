@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import MenuButton from "../components/MenuButton/MenuButton.tsx";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "../context/AuthContext";
 import "./Friends.css";
 
 // --- INTERFEJSY ---
@@ -11,11 +12,20 @@ interface FriendRequest {
   receiverNick: string;
   status: "PENDING" | "ACCEPTED";
   createdAt: string;
+  // Rozszerzone statystyki o Multi
+  friendStats?: {
+    guessed_percentage: number;
+    games_played: number;
+    multi_points: number; // NOWE POLE
+  };
 }
 
 export default function Friends() {
-  const myNickname = localStorage.getItem("myNickname") || "Anon";
+  const { user } = useAuth();
   
+  // Nick użytkownika
+  const myNickname = user?.user_metadata?.nickname || user?.email?.split('@')[0] || "";
+
   const [friends, setFriends] = useState<FriendRequest[]>([]);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [searchNick, setSearchNick] = useState("");
@@ -28,121 +38,142 @@ export default function Friends() {
     setLoading(true);
 
     try {
-      const [friendsRes, requestsRes] = await Promise.all([
-        // Znajomi (ACCEPTED) - sprawdzamy obie strony relacji
-        supabase
-          .from("FriendRequest")
-          .select("*")
-          .or(`senderNick.eq.${myNickname},receiverNick.eq.${myNickname}`)
-          .eq("status", "ACCEPTED"),
-        
-        // Zaproszenia DO MNIE (PENDING)
-        supabase
-          .from("FriendRequest")
-          .select("*")
-          .eq("receiverNick", myNickname)
-          .eq("status", "PENDING")
-      ]);
+      // 1. POBIERZ ZNAJOMYCH
+      const { data: friendsData, error: friendsError } = await supabase
+        .from("FriendRequest")
+        .select("*")
+        .or(`senderNick.eq."${myNickname}",receiverNick.eq."${myNickname}"`)
+        .eq("status", "ACCEPTED");
 
-      if (friendsRes.data) setFriends(friendsRes.data);
-      if (requestsRes.data) setRequests(requestsRes.data);
+      // 2. POBIERZ ZAPROSZENIA
+      const { data: requestsData, error: requestsError } = await supabase
+        .from("FriendRequest")
+        .select("*")
+        .eq("receiverNick", myNickname)
+        .eq("status", "PENDING");
+
+      if (friendsError) console.error("Error fetching friends:", friendsError);
+      if (requestsError) console.error("Error fetching requests:", requestsError);
+
+      // --- 3. DOCIĄGNIJ PEŁNE STATYSTYKI ---
+      let enrichedFriends: FriendRequest[] = friendsData || [];
+
+      if (friendsData && friendsData.length > 0) {
+        // Wyciągnij listę nicków znajomych
+        const friendNicknames = friendsData.map(f => 
+          f.senderNick === myNickname ? f.receiverNick : f.senderNick
+        );
+
+        // A. Pobierz SINGLEPLAYER (z Profiles)
+        const { data: profilesData } = await supabase
+          .from("Profiles")
+          .select("nickname, guessed_percentage, games_played")
+          .in("nickname", friendNicknames);
+
+        // B. Pobierz MULTIPLAYER (z tabeli Player - historia gier)
+        const { data: multiData } = await supabase
+          .from("Player")
+          .select("nickname, score")
+          .in("nickname", friendNicknames);
+
+        // Łączenie danych
+        enrichedFriends = friendsData.map(f => {
+          const friendNick = f.senderNick === myNickname ? f.receiverNick : f.senderNick;
+          
+          // Dane Single
+          const profileStats = profilesData?.find(p => p.nickname === friendNick);
+          
+          // Dane Multi (sumowanie punktów)
+          const totalMultiPoints = multiData
+            ?.filter(m => m.nickname === friendNick)
+            .reduce((acc, curr) => acc + (curr.score || 0), 0) || 0;
+
+          return {
+            ...f,
+            friendStats: profileStats ? {
+              guessed_percentage: profileStats.guessed_percentage,
+              games_played: profileStats.games_played,
+              multi_points: totalMultiPoints // Dodajemy sumę punktów
+            } : undefined
+          };
+        });
+      }
+
+      setFriends(enrichedFriends);
+      if (requestsData) setRequests(requestsData);
+
     } catch (err) {
-      console.error("Błąd pobierania znajomych:", err);
+      console.error("Critical error fetching data:", err);
     } finally {
       setLoading(false);
     }
   }, [myNickname]);
 
-  // --- AKCJE ---
+  // --- WYSYŁANIE ZAPROSZENIA ---
   const sendInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     const target = searchNick.trim();
 
-    if (!target || target === myNickname) {
-      alert("Nie możesz zaprosić samego siebie ani pustego nicku.");
-      return;
-    }
+    if (!myNickname) { alert("Musisz być zalogowany!"); return; }
+    if (!target || target === myNickname) { alert("Nieprawidłowy nick."); return; }
 
-    // --- ZMIANA TUTAJ ---
-    // Sprawdzamy czy gracz istnieje w tabeli PROFILES (wszyscy zarejestrowani),
-    // a nie w rankingu (tylko ci, co zagrali).
     const { data: userExists, error: searchError } = await supabase
       .from("Profiles")
       .select("nickname")
       .eq("nickname", target)
-      .single();
+      .maybeSingle();
 
-    if (searchError || !userExists) {
-      alert("Gracz o takim nicku nie istnieje (musi się najpierw zarejestrować)!");
-      return;
-    }
-    // --------------------
+    if (searchError || !userExists) { alert("Taki gracz nie istnieje."); return; }
 
-    // Sprawdzenie czy zaproszenie już nie istnieje
     const { data: existing } = await supabase
       .from("FriendRequest")
       .select("*")
-      .or(`senderNick.eq.${myNickname},receiverNick.eq.${myNickname}`)
-      .or(`senderNick.eq.${target},receiverNick.eq.${target}`)
-      .in("status", ["PENDING", "ACCEPTED"]); // Sprawdzamy czy już nie są znajomymi lub w trakcie
+      .or(`senderNick.eq."${myNickname}",receiverNick.eq."${myNickname}"`)
+      .in("status", ["PENDING", "ACCEPTED"]);
 
-    // Proste filtrowanie po stronie klienta, żeby upewnić się że to ta para
-    const isAlreadyLinked = existing?.some(
-      (req) => 
-        (req.senderNick === myNickname && req.receiverNick === target) ||
-        (req.senderNick === target && req.receiverNick === myNickname)
+    const isAlreadyLinked = existing?.some((req) => 
+      (req.senderNick === myNickname && req.receiverNick === target) ||
+      (req.senderNick === target && req.receiverNick === myNickname)
     );
 
-    if (isAlreadyLinked) {
-      alert("Już jesteście znajomymi lub zaproszenie oczekuje!");
-      return;
-    }
+    if (isAlreadyLinked) { alert("Już jesteście znajomymi lub zaproszenie w toku."); return; }
 
-    // Wysyłanie zaproszenia
-    const { error } = await supabase.from("FriendRequest").insert([
-      { 
-        senderNick: myNickname, 
-        receiverNick: target, 
-        status: "PENDING" 
-      }
-    ]);
+    const { error: insertError } = await supabase.from("FriendRequest").insert([{ 
+      senderNick: myNickname, receiverNick: target, status: "PENDING"
+    }]);
 
-    if (error) {
-      console.error(error);
-      alert("Wystąpił błąd przy wysyłaniu.");
-    } else {
+    if (insertError) alert("Błąd bazy: " + insertError.message);
+    else {
       alert(`Wysłano zaproszenie do ${target}!`);
       setSearchNick("");
-      setTab("list"); // Przełącz na listę, żeby zobaczyć ew. zmiany
+      fetchData();
     }
   };
 
   const handleRequest = async (id: string, action: "ACCEPTED" | "REJECTED") => {
-    if (action === "REJECTED") {
-      await supabase.from("FriendRequest").delete().eq("id", id);
-    } else {
-      await supabase.from("FriendRequest").update({ status: "ACCEPTED" }).eq("id", id);
-    }
-    // Realtime zajmie się resztą, ale odświeżamy dla pewności
-    fetchData();
+    try {
+      if (action === "REJECTED") await supabase.from("FriendRequest").delete().eq("id", id);
+      else await supabase.from("FriendRequest").update({ status: "ACCEPTED" }).eq("id", id);
+      fetchData();
+    } catch (error) { console.error(error); }
   };
 
-  // --- REALTIME I INIT ---
   useEffect(() => {
-    fetchData();
-
-    // Słuchamy zmian w tabeli zaproszeń (dodanie, usunięcie, update)
-    const channel = supabase
-      .channel("friend-system")
-      .on("postgres_changes", { event: "*", schema: "public", table: "FriendRequest" }, () => {
-        fetchData();
-      })
+    if (user) fetchData();
+    const channel = supabase.channel("friend-system")
+      .on("postgres_changes", { event: "*", schema: "public", table: "FriendRequest" }, () => fetchData())
       .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user, fetchData]);
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchData]);
+  if (!user) return (
+    <div className="friends-container-pro">
+      <div className="friends-glass-box">
+        <h2 className="neon-text">ZALOGUJ SIĘ</h2>
+        <MenuButton label="BACK TO MENU" to="/" />
+      </div>
+    </div>
+  );
 
   return (
     <div className="friends-container-pro">
@@ -151,18 +182,9 @@ export default function Friends() {
         animate={{ opacity: 1, scale: 1 }}
         className="friends-glass-box"
       >
-        {/* TABS */}
         <div className="tabs">
-          <button 
-            className={tab === "list" ? "active" : ""} 
-            onClick={() => setTab("list")}
-          >
-            MY FRIENDS
-          </button>
-          <button 
-            className={tab === "requests" ? "active" : ""} 
-            onClick={() => setTab("requests")}
-          >
+          <button className={tab === "list" ? "active" : ""} onClick={() => setTab("list")}>MY FRIENDS</button>
+          <button className={tab === "requests" ? "active" : ""} onClick={() => setTab("requests")}>
             INVITES {requests.length > 0 && <span className="badge-count">{requests.length}</span>}
           </button>
         </div>
@@ -170,18 +192,11 @@ export default function Friends() {
         <div className="tab-content">
           {tab === "list" ? (
             <>
-              {/* Formularz zaproszenia */}
               <form onSubmit={sendInvite} className="invite-form">
-                <input
-                  type="text"
-                  placeholder="Find player by nickname..."
-                  value={searchNick}
-                  onChange={(e) => setSearchNick(e.target.value)}
-                />
+                <input type="text" placeholder="Find player by nickname..." value={searchNick} onChange={(e) => setSearchNick(e.target.value)} />
                 <button type="submit">INVITE</button>
               </form>
 
-              {/* Lista znajomych */}
               <div className="friends-list">
                 {loading && <p className="status-info">Loading...</p>}
                 {!loading && friends.length === 0 && <p className="empty-info">No friends added yet.</p>}
@@ -196,12 +211,34 @@ export default function Friends() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, x: -20 }}
                         className="friend-row"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
                       >
-                        <div className="friend-meta">
+                        <div className="friend-meta" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                           <div className="avatar-small">{friendNick[0].toUpperCase()}</div>
-                          <span>{friendNick}</span>
+                          <div style={{ textAlign: 'left' }}>
+                            <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{friendNick}</div>
+                            
+                            {/* --- WYŚWIETLANIE OBU STATYSTYK --- */}
+                            {f.friendStats && (
+                              <div style={{ display: 'flex', gap: '12px', fontSize: '0.8rem', color: '#aaa', marginTop: '4px' }}>
+                                
+                                {/* SINGLEPLAYER - SKUTECZNOŚĆ */}
+                                <span title="Skuteczność Single (Zielony)" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  🎯 <span style={{ color: '#4ade80', fontWeight: 'bold' }}>{f.friendStats.guessed_percentage}%</span>
+                                </span>
+
+                                {/* MULTIPLAYER - PUNKTY */}
+                                <span title="Punkty Multiplayer (Złoty)" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  🌐 <span style={{ color: '#facc15', fontWeight: 'bold' }}>{f.friendStats.multi_points}</span>
+                                </span>
+
+                              </div>
+                            )}
+                            {!f.friendStats && <span style={{fontSize: '0.7rem', color: '#555'}}>Brak danych</span>}
+                          </div>
                         </div>
-                        <div className="status-indicator online"></div>
+                        
+                        <div className="status-indicator online" title="Status online (mock)"></div>
                       </motion.div>
                     );
                   })}
@@ -209,18 +246,11 @@ export default function Friends() {
               </div>
             </>
           ) : (
-            /* Lista zaproszeń */
             <div className="requests-list">
               {requests.length === 0 && <p className="empty-info">No pending invites.</p>}
               <AnimatePresence mode="popLayout">
                 {requests.map((r) => (
-                  <motion.div 
-                    key={r.id} 
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, scale: 0.5 }}
-                    className="request-row"
-                  >
+                  <motion.div key={r.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, scale: 0.5 }} className="request-row">
                     <span className="request-label"><b>{r.senderNick}</b> invited you</span>
                     <div className="actions">
                       <button className="btn-accept" onClick={() => handleRequest(r.id, "ACCEPTED")}>✔</button>

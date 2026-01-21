@@ -9,9 +9,9 @@ import speakerRight from "../assets/speaker-right.png";
 import MenuButton from "../components/MenuButton/MenuButton.tsx";
 
 export default function Home() {
-  const { user, signOut, loading } = useAuth();
+  const { user, signOut, loading } = useAuth(); // Pobieranie danych z kontekstu
 
-  // Główna lista przycisków na środku (bez LOGIN)
+  // Główna lista przycisków na środku
   const buttons = useMemo(() => [
     { label: "PLAY", screen: "/tryb" },
     { label: "FRIENDS", screen: "/friends" },
@@ -19,10 +19,13 @@ export default function Home() {
     { label: "EXPLORE", screen: "/search" },
   ], []);
 
+  // Pobieramy nick z metadanych, jeśli nie ma - pokazujemy email jako fallback
+  const userNick = user?.user_metadata?.nickname || user?.email; // Nickname zapisany podczas rejestracji
+
   return (
     <div className="master">
       
-      {/* SEKCJA LOGOWANIA W PRAWYM GÓRNYM ROGU */}
+      {/* SEKCJA LOGOWANIA I PROFILU W PRAWYM GÓRNYM ROGU */}
       <div style={{ 
         position: 'absolute', 
         top: '20px', 
@@ -34,18 +37,45 @@ export default function Home() {
       }}>
         {!loading && (
           user ? (
-            <div className="user-glass-panel" style={{ position: 'static' }}>
-              <span style={{ color: '#4ade80' }}>👤 {user.email}</span>
-              <button onClick={signOut} className="logout-glass-btn">WYLOGUJ</button>
+            /* PANEL ZALOGOWANEGO UŻYTKOWNIKA */
+            <div className="user-glass-panel" style={{ 
+              position: 'static',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '15px' 
+            }}>
+              {/* IKONKA PROFILU JAKO ODNOŚNIK */}
+              <NavLink 
+                to="/profile" 
+                style={{ 
+                  textDecoration: 'none', 
+                  fontSize: '1.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  transition: 'transform 0.2s'
+                }}
+                className="profile-avatar-link"
+                title="Przejdź do profilu"
+              >
+                👤
+              </NavLink>
+
+              {/* ZMIENIONE: Wyświetla NICK zamiast EMAIL */}
+              <span style={{ color: '#4ade80', fontWeight: 'bold' }}>{userNick}</span>
+              
+              <button onClick={signOut} className="logout-glass-btn">
+                WYLOGUJ
+              </button>
             </div>
           ) : (
+            /* PRZYCISK LOGOWANIA DLA NIEZALOGOWANYCH */
             <NavLink 
               to="/login" 
               className="menu-button" 
               style={{ 
-                fontSize: '1rem',      /* Mniejszy tekst */
-                padding: '5px 20px',   /* Mniejszy kafelek */
-                minWidth: 'auto',      /* Nie tak szeroki jak te na środku */
+                fontSize: '1rem',
+                padding: '5px 20px',
+                minWidth: 'auto',
                 boxShadow: '0 4px 15px rgba(0,0,0,0.3)' 
               }}
             >

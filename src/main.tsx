@@ -5,7 +5,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 
 // IMPORT KONTEKSTÓW
 import { AuthProvider } from "./context/AuthContext.tsx";
-import { VolumeProvider } from "./context/VolumeContext.tsx"; // Nowy kontekst głośności
+import { VolumeProvider } from "./context/VolumeContext.tsx";
 
 // IMPORTY KOMPONENTÓW I STRON
 import App from "./App.tsx";
@@ -19,6 +19,7 @@ import MusicPage from "./pages/ITunes.tsx"; // Twój EXPLORE
 import Ranking from "./pages/Ranking.tsx";
 import Friends from "./pages/Friends.tsx";
 import Login from "./pages/Login.tsx";
+import Profile from "./pages/Profile.tsx";
 
 // KONFIGURACJA ROUTERA
 const router = createBrowserRouter([
@@ -35,6 +36,10 @@ const router = createBrowserRouter([
         element: <Login />,
       },
       {
+        path: "profile",
+        element: <Profile />,
+      },
+      {
         path: "ranking",
         element: <Ranking />,
       },
@@ -46,7 +51,6 @@ const router = createBrowserRouter([
         path: "tryb",
         element: <Tryb />,
       },
-      // --- ŚCIEŻKI MULTIPLAYER ---
       {
         path: "tryb/multiplayer",
         element: <PlayMenu />,
@@ -59,12 +63,10 @@ const router = createBrowserRouter([
         path: "game/:roomId",
         element: <MultiplayerGame />,
       },
-      // --- ŚCIEŻKI SINGLEPLAYER ---
       {
         path: "tryb/singleplayer",
         element: <Solo />,
       },
-      // --- EXPLORE / SEARCH ---
       {
         path: "search",
         element: <MusicPage />,
