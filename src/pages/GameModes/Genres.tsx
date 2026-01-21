@@ -46,6 +46,7 @@ const Genres = ({ onGenreSelect }: GenresProps) => {
                 {/* Jeśli onGenreSelect istnieje, używamy div/button zamiast NavLink */}
                 {onGenreSelect ? (
                   <button
+                    type="button"
                     onClick={() => handleSelect(genre)}
                     className="genre-link"
                   >

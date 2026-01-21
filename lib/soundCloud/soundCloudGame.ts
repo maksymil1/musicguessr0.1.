@@ -1,20 +1,21 @@
-// src/lib/soundcloudGame.ts
 import axios from 'axios';
-import  {getAccessToken} from './soundCloudAuth.js'; 
+import { getAccessToken } from './soundCloudAuth.js'; 
 import type { GameMode, GameTrack, SoundCloudTrackResponse } from '../../src/types/types.ts';
-
 
 const SC_API_BASE = 'https://api.soundcloud.com';
 
-// Pomocnicza funkcja do mapowania surowej odpowiedzi na nasz czysty typ GameTrack
+// Pomocnicza funkcja do mapowania
 const mapToGameTrack = (track: SoundCloudTrackResponse): GameTrack => ({
   urn: track.urn || `soundcloud:tracks:${track.id}`,
   title: track.title,
   artist: track.user.username,
-  artworkUrl: track.artwork_url?.replace('-large', '-t500x500') || null, // Pobieramy wyższą jakość okładki
+  artworkUrl: track.artwork_url?.replace('-large', '-t500x500') || null,
   permalinkUrl: track.permalink_url,
   duration: track.duration,
+  source: 'soundcloud',
 });
+
+const getItunesArtwork = (url: string) => url.replace('100x100bb', '500x500bb');
 
 export async function fetchGameTracks(
   mode: GameMode, 
@@ -23,244 +24,118 @@ export async function fetchGameTracks(
   
   if (!query) throw new Error("Query is required");
 
-  const accessToken = await getAccessToken();
-  const headers = { 'Authorization': `OAuth ${accessToken}` };
+  // USUNIĘTO POBIERANIE TOKENA STĄD - BLOKOWAŁO ITUNES!
   
-  let tracks: SoundCloudTrackResponse[] = [];
+  let finalTracks: GameTrack[] = [];
 
   try {
-    switch (mode) {
-      case 'playlist': {
-        let playlistUrn: string | null = null;
+    // --- 1. TRYB ITUNES (ARTIST / GENRE) ---
+    if (mode === 'artist' || mode === 'genre') {
+      let searchTerm = query;
+      
+      // Dopisek dla lepszych wyników w iTunes
+      if (mode === 'genre') searchTerm = `${query} music top hits`;
+      
+      console.log(`[MusicSource] Szukam w iTunes: ${searchTerm}`);
 
-        // SCENARIUSZ A: Użytkownik wkleił link (np. https://soundcloud.com/...)
-        if (query.startsWith('http')) {
-          try {
-            const resolveRes = await axios.get(`${SC_API_BASE}/resolve`, {
-              headers,
-              params: { url: query }
-            });
-            console.log("Resolve response data:", resolveRes.data.kind);
-
-            if (resolveRes.data && resolveRes.data.kind === 'playlist') {
-              playlistUrn = resolveRes.data.urn; 
-              //   if (resolveRes.data.tracks && Array.isArray(resolveRes.data.tracks)) {
-              //   console.log(`Pobrano ${resolveRes.data.tracks.length} utworów bezpośrednio z resolve.`);
-              //   tracks = resolveRes.data.tracks;
-              // }
-            } else {
-              throw new Error("Podany link nie prowadzi do playlisty.");
-            }
-          } catch (e) {
-            console.error("Błąd resolve:", e);
-            throw new Error("Nie udało się przetworzyć linku. Sprawdź czy playlista jest publiczna.");
-          }
+      // iTunes nie wymaga żadnego tokena auth
+      const res = await axios.get('https://itunes.apple.com/search', {
+        params: {
+          term: searchTerm,
+          entity: 'song',
+          limit: 50,
+          explicit: 'No'
         }
-        // SCENARIUSZ B: Użytkownik podał URN (np. soundcloud:playlists:12345)
-        else if (query.startsWith('soundcloud:playlists:')) {
-          playlistUrn = query.replace('soundcloud:playlists:', '');
-        } else {
-          playlistUrn = query;
-        }
+      });
 
-
-        console.log("Zidentyfikowany URN playlisty:", playlistUrn);
-
-
-        if(playlistUrn)
-        {
-          console.log(`Pobieranie utworów dla Playlist ID: ${playlistUrn} z limitem 500...`);
-  
-          try {
-            // Używamy endpointu /tracks, który pozwala na duży limit
-            // linked_partitioning=1 zmienia strukturę odpowiedzi na { collection: [], next_href: ... }
-            const tracksRes = await axios.get(`${SC_API_BASE}/playlists/${playlistUrn}/tracks`, {
-              headers,
-              params: { 
-                limit: 500, // SoundCloud zazwyczaj pozwala max na 200 lub 500 w jednym rzucie
-                access: 'playable',
-                linked_partitioning: 1 
-              }
-            });
-
-            // Obsługa paginowanej odpowiedzi
-            if (tracksRes.data.collection) {
-              tracks = tracksRes.data.collection;
-            } else if (Array.isArray(tracksRes.data)) {
-              tracks = tracksRes.data;
-            }
-
-            console.log(`Pobrano ${tracks.length} utworów.`);
-
-          } catch (err: any) {
-            console.error("Błąd pobierania listy utworów:", err.message);
-          }
-
-        }
-        break;
+      if (!res.data.results || res.data.results.length === 0) {
+        throw new Error(`Nie znaleziono utworów dla: ${query}`);
       }
 
-      case 'genre': {
-        console.log("Sprawdzam URN:", query);
-        const res = await axios.get(`${SC_API_BASE}/playlists/${query}/tracks`, {
+      finalTracks = res.data.results.map((item: any) => ({
+        urn: item.previewUrl, 
+        title: item.trackName,
+        artist: item.artistName,
+        artworkUrl: item.artworkUrl100 ? getItunesArtwork(item.artworkUrl100) : null,
+        duration: 30000,
+        source: 'itunes'
+      }));
+
+      // Losowanie
+      finalTracks = finalTracks.sort(() => 0.5 - Math.random()).slice(0, 20);
+
+    } 
+    // --- 2. TRYB SOUNDCLOUD (PLAYLIST) ---
+    else if (mode === 'playlist') {
+      
+      // Token pobieramy TYLKO tutaj, gdy jest faktycznie potrzebny
+      console.log("[MusicSource] Autoryzacja SoundCloud...");
+      const accessToken = await getAccessToken();
+      const headers = { 'Authorization': `OAuth ${accessToken}` };
+
+      let playlistId: string | null = null;
+
+      if (query.startsWith('http')) {
+        try {
+          const resolveRes = await axios.get(`${SC_API_BASE}/resolve`, {
+            headers,
+            params: { url: query }
+          });
+          if (resolveRes.data && resolveRes.data.kind === 'playlist') {
+            playlistId = resolveRes.data.id; 
+          } else {
+            throw new Error("Link nie prowadzi do playlisty.");
+          }
+        } catch (e) {
+          throw new Error("Błąd linku playlisty SoundCloud lub brak dostępu.");
+        }
+      } else if (query.startsWith('soundcloud:playlists:')) {
+        playlistId = query.replace('soundcloud:playlists:', '');
+      } else {
+        playlistId = query;
+      }
+
+      if (playlistId) {
+        console.log(`[MusicSource] Pobieranie playlisty SC ID: ${playlistId}`);
+        
+        const tracksRes = await axios.get(`${SC_API_BASE}/playlists/${playlistId}/tracks`, {
           headers,
+          params: { limit: 200, access: 'playable', linked_partitioning: 1 }
         });
 
+        let rawScTracks: SoundCloudTrackResponse[] = [];
+        if (tracksRes.data.collection) rawScTracks = tracksRes.data.collection;
+        else if (Array.isArray(tracksRes.data)) rawScTracks = tracksRes.data;
 
-        tracks = res.data || [];
-        break;
-      }
-
-      case 'artist': {
-        console.log(`\n[Artist] Szukam profilu: "${query}"`);
-        let artist: any = null;
-        let artistTracks: SoundCloudTrackResponse[] = [];
-
-        // --- KROK 1: Wyszukiwanie użytkownika (Naprawione parsowanie) ---
-        try {
-            const userRes = await axios.get(`${SC_API_BASE}/users`, {
-              headers,
-              params: { q: query, limit: 2 }
-            });
-
-            const foundUsers = Array.isArray(userRes.data) 
-                ? userRes.data 
-                : (userRes.data.collection || []);
-
-            if (foundUsers.length > 0) {
-                // Szukamy najlepszego kandydata (najwięcej followersów + ma utwory)
-                const bestMatch = foundUsers
-                    .filter((u: any) => (u.track_count || 0) > 0)
-                    .sort((a: any, b: any) => (b.followers_count || 0) - (a.followers_count || 0))[0];
-                
-                if (bestMatch) {
-                    artist = bestMatch;
-                    console.log(`[Artist] Znaleziono przez User Search: ${artist.username} (${artist.followers_count} obs.)`);
-                  }
-            }
-        } catch (e: any) {
-            console.warn("[Artist] Błąd przy szukaniu użytkownika:", e.message);
-        }
-        if (artist) {
-            console.log(`[Artist] Pobieranie oficjalnej biblioteki ID: ${artist.id}...`);
-            try {
-                const tracksRes = await axios.get(`${SC_API_BASE}/users/${artist.id}/tracks`, {
-                    headers,
-                    params: { 
-                        limit: 200, 
-                        linked_partitioning: 1,
-                    }
-                });
-                artistTracks = tracksRes.data.collection || [];
-            } catch (e) {
-                console.warn("[Artist] Błąd pobierania oficjalnych utworów:", e);
-            }
-        }
-
-            let validArtistTracks = artistTracks.filter(t => {
+        // Filtrowanie (blokady regionalne, brak streamu itp.)
+        finalTracks = rawScTracks.filter(t => {
             if (!t) return false;
             const hasId = t.id || t.urn;
             const isStreamable = t.streamable !== false;
-            
             const policy = t.policy || 'ALLOW';
-            const isBlocked = policy === 'BLOCK'; 
-
+            const isBlocked = policy === 'BLOCK';
+            
             let hasMediaCheck = true;
             if (t.media) {
                  hasMediaCheck = (t.media.transcodings?.length || 0) > 0;
             }
-
             return hasId && isStreamable && !isBlocked && hasMediaCheck;
-        });
-
-        console.log(`[Artist] Oficjalne utwory po filtracji (w tym snippety): ${validArtistTracks.length}`);
-          
-          if (validArtistTracks.length === 0) {
-            console.log(` [Artist] Brak dostępnych utworów na oficjalnym koncie. Szukam w wyszukiwarce ogólnej...`);
-
-          try {
-            const searchRes = await axios.get(`${SC_API_BASE}/tracks`, {
-                headers,
-                params: {
-                    q: query,
-                    limit: 100,
-                    access: 'playable', 
-                }
-            });
-
-            const searchResults = Array.isArray(searchRes.data) 
-                ? searchRes.data 
-                : (searchRes.data.collection || [])
-            
-            // Proste dopasowanie nazwy, żeby nie brać śmieci
-            const queryLower = query.toLowerCase();
-            validArtistTracks = searchResults.filter((t: any) => {
-                const titleMatch = t.title.toLowerCase().includes(queryLower);
-                const userMatch = t.user.username.toLowerCase().includes(queryLower);
-                return titleMatch || userMatch;
-            });
-            
-            console.log(`[Artist] Znaleziono ${validArtistTracks.length} utworów w wyszukiwaniu ogólnym.`);
-        } catch (fallbackError: any) {
-                console.error("[Artist] Błąd w fallbacku:", fallbackError.message);
-            }
-
-        if (validArtistTracks.length === 0) {
-          throw new Error(`Nie znaleziono żadnych utworów dla "${query}".`);
-        }
+        }).map(mapToGameTrack);
+        
+        finalTracks = finalTracks.sort(() => 0.5 - Math.random()).slice(0, 20);
       }
-
-
-        console.log(`[Artist] Wybrano ostatecznie: ${artist.username} (ID: ${artist.id}). Pobieranie biblioteki...`);
-
-        validArtistTracks.sort((a: any, b: any) => 
-          (b.playback_count || 0) - (a.playback_count || 0)
-        );
-
-        // Debug: Oznaczamy w logach, które to snippety (mają 30000ms)
-        const top3 = validArtistTracks.slice(0, 3).map((t:any) => 
-            `${t.title} [${t.duration === 30000 ? 'SNIPPET 30s' : 'FULL'}]`
-        );
-        console.log("[Artist] Top 3 hity w grze:", top3);
-
-        // Bierzemy Top 40 do losowania
-        tracks = validArtistTracks.slice(0, 10);
-        break;
-      }
-
     }
 
-
-const validTracks = tracks.filter(t => {
-        if (!t) return false;
-
-        const hasId = t.id || t.urn;
-        const isStreamable = t.streamable !== false; // jesli undefined lub true, to OK
-        const policy = t.policy || 'ALLOW';  // jesli nie ma policy, to ALLOW
-        const isBlocked = policy === 'BLOCK';
-        let hasMediaCheck = true;
-        if (t.media) // jesli ma media to sprawdzamy transcodings
-        {
-             // Jeśli pole media istnieje, to musi mieć transcodings > 0
-             hasMediaCheck = (t.media.transcodings?.length || 0) > 0;
-        }
-
-        return hasId && isStreamable && !isBlocked && hasMediaCheck;
-    }).map(mapToGameTrack);
-
-    if (validTracks.length < 5) {
-      console.warn("Przefiltrowano zbyt wiele utworów. Debug:");
-      if (tracks.length > 0) {
-          console.log("Przykładowy odrzucony (lub pierwszy z listy):", JSON.stringify(tracks[0], null, 2));
-      }
-      throw new Error(`Znaleziono za mało grywalnych utworów (${validTracks.length}) po filtracji.`);
+    // Walidacja ilości
+    if (finalTracks.length < 5) {
+      throw new Error(`Znaleziono za mało grywalnych utworów (${finalTracks.length}). Wymagane min. 5.`);
     }
 
-    console.log(`Zwracam ${validTracks.length} utworów do gry.`);
-    return validTracks;
+    console.log(`[MusicSource] Sukces. Zwracam ${finalTracks.length} utworów.`);
+    return finalTracks;
 
   } catch (error: any) {
-    console.error("Błąd w fetchGameTracks:", error.message);
-    throw new Error(error.response?.data?.message || error.message || "Błąd pobierania danych z SoundCloud");
+    console.error("Błąd w fetchGameTracks:", error.message || error);
+    throw new Error(error.message || "Błąd pobierania danych z serwisu muzycznego.");
   }
 }

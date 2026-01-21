@@ -8,7 +8,8 @@ export interface GameTrack {
   artworkUrl: string | null; 
   streamUrl?: string;   
   permalinkUrl: string; 
-  duration: number;    
+  duration: number;   
+  source?: "itunes" | "soundcloud";
 }
 
 // Typ pomocniczy dla odpowiedzi z API SoundCloud
