@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import HlsPlayer from "./HlsPlayer";
-import { useVolume } from "../context/VolumeContext"; // <--- IMPORT CONTEXTU
 import type { GameTrack, GameMode } from "../types/types";
+import "./QuizPlayer.css";
 
 interface QuizPlayerProps {
   mode: GameMode;
@@ -11,7 +11,6 @@ interface QuizPlayerProps {
   initialQuery?: string;
   onGameFinish: () => void;
   onGameStateChange?: (updates: any) => void;
-  // volume prop usunięty - bierzemy go z Contextu
 }
 
 export default function QuizPlayer({
@@ -23,28 +22,14 @@ export default function QuizPlayer({
   onGameStateChange,
 }: QuizPlayerProps) {
   const playerRef = useRef<HTMLAudioElement>(null);
+
   const queueRef = useRef<GameTrack[] | null>(null);
   const roundRef = useRef(0);
   const isHostRef = useRef(isHost);
+  const hasSyncedRef = useRef(false);
 
-  // --- PODPIĘCIE POD GLOBALNY CONTEXT ---
-  const { volume, isMuted } = useVolume();
-  
-  // Ref do głośności, aby w event listenerach (onPlay) mieć zawsze świeżą wartość bez restartu
-  const volumeSettingsRef = useRef({ volume, isMuted });
-
-  useEffect(() => {
-    volumeSettingsRef.current = { volume, isMuted };
-  }, [volume, isMuted]);
-
-  // Refy dla callbacków
-  const onGameFinishRef = useRef(onGameFinish);
-  const onGameStateChangeRef = useRef(onGameStateChange);
-
-  useEffect(() => {
-    onGameFinishRef.current = onGameFinish;
-    onGameStateChangeRef.current = onGameStateChange;
-  }, [onGameFinish, onGameStateChange]);
+  // Przechowujemy czas startu w refie, żeby useEffect od timera miał do niego dostęp
+  const songStartRef = useRef<string | null>(null);
 
   const [inputValue, setInputValue] = useState("");
   const [gameQueue, setGameQueue] = useState<GameTrack[] | null>(null);
@@ -54,94 +39,69 @@ export default function QuizPlayer({
   const [status, setStatus] = useState("");
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentSongStartTime, setCurrentSongStartTime] = useState<string | null>(null);
 
-  // --- FUNKCJA APLIKUJĄCA GŁOŚNOŚĆ ---
-  const enforceVolume = useCallback(() => {
-    if (playerRef.current) {
-      const { volume: vol, isMuted: muted } = volumeSettingsRef.current;
-      
-      if (muted) {
-        playerRef.current.volume = 0;
+  // Stan dla Timera
+  const [timeLeft, setTimeLeft] = useState(30.0);
+
+  useEffect(() => {
+    queueRef.current = gameQueue;
+  }, [gameQueue]);
+  useEffect(() => {
+    roundRef.current = currentRound;
+  }, [currentRound]);
+  useEffect(() => {
+    isHostRef.current = isHost;
+  }, [isHost]);
+
+  // --- LOGIKA TIMERA (HYBRYDOWA) ---
+  useEffect(() => {
+    // Jeśli nie ma url lub statusu gry, nie odliczamy
+    if (!streamUrl || !isGameStarted) return;
+
+    // 1. Inicjalizacja czasu (wykonuje się raz przy zmianie piosenki)
+    const syncTime = () => {
+      if (songStartRef.current) {
+        const serverStart = new Date(songStartRef.current).getTime();
+        const now = Date.now();
+        // Różnica w sekundach
+        const elapsed = (now - serverStart) / 1000;
+
+        // Jeśli różnica jest sensowna (0-30s), ustawiamy dokładny czas
+        if (elapsed >= 0 && elapsed < 30) {
+          setTimeLeft(30 - elapsed);
+        } else {
+          // Jeśli czas jest "z kosmosu" (np. różnica zegarów), resetujemy na 30s
+          // To jest ten "Fake", który ratuje sytuację
+          setTimeLeft(30);
+        }
       } else {
-        // Skalowanie logarytmiczne dla bardziej naturalnego odczucia (x^2)
-        const normalized = vol / 100;
-        const safeVolume = Math.min(Math.max(normalized, 0), 1);
-        playerRef.current.volume = Math.pow(safeVolume, 2);
-      }
-    }
-  }, []);
-
-  // Reakcja na zmianę suwaka lub mute w czasie rzeczywistym
-  useEffect(() => {
-    enforceVolume();
-  }, [volume, isMuted, enforceVolume]);
-
-  // --- AUTOMATYCZNY START ODTWARZANIA ---
-  useEffect(() => {
-    if (!streamUrl || !playerRef.current) return;
-
-    let isCancelled = false;
-    
-    const playAudio = async () => {
-      try {
-        const player = playerRef.current;
-        if (!player) return;
-
-        // 1. Ustaw głośność PRZED startem
-        enforceVolume();
-
-        // 2. Synchronizacja czasu
-        if (currentSongStartTime) {
-          const startTimeMs = new Date(currentSongStartTime).getTime();
-          const nowMs = Date.now();
-          const diffSec = (nowMs - startTimeMs) / 1000;
-          
-          if (diffSec > 0 && diffSec < 29) {
-            player.currentTime = diffSec;
-          }
-        }
-
-        // 3. Próba odtworzenia
-        if (!isCancelled) {
-          await player.play();
-        }
-      } catch (err: any) {
-        if (err.name !== "AbortError") {
-          console.warn("Autoplay blocked/failed:", err);
-        }
+        setTimeLeft(30);
       }
     };
+    syncTime();
 
-    const timeoutId = setTimeout(playAudio, 150);
+    // 2. Płynne odliczanie lokalne
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        const newVal = prev - 0.1;
+        if (newVal <= 0) {
+          // Koniec czasu - zatrzymaj na 0
+          return 0;
+        }
+        return newVal;
+      });
+    }, 100);
 
-    return () => {
-      isCancelled = true;
-      clearTimeout(timeoutId);
-    };
-  }, [streamUrl, currentSongStartTime, enforceVolume]);
+    return () => clearInterval(interval);
+  }, [streamUrl, isGameStarted]); // Resetuje się tylko gdy zmienia się URL (nowa runda)
 
-  useEffect(() => { queueRef.current = gameQueue; }, [gameQueue]);
-  useEffect(() => { roundRef.current = currentRound; }, [currentRound]);
-  useEffect(() => { isHostRef.current = isHost; }, [isHost]);
-
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      if (playerRef.current) {
-        playerRef.current.pause();
-        playerRef.current.src = "";
-      }
-    };
-  }, []);
-
-  // --- LOGIKA GRY (BEZ ZMIAN) ---
+  // --- START GRY (HOST) ---
   const handleStartGame = async () => {
     if (!isHost) return;
     if (!inputValue && mode !== "genre" && !initialQuery) return;
 
     setIsLoading(true);
-    setStatus("Pobieranie utworów...");
+    setStatus("POBIERANIE...");
 
     try {
       const query = initialQuery || inputValue;
@@ -171,10 +131,11 @@ export default function QuizPlayer({
       setGameQueue(tracks);
       setCurrentRound(0);
       setIsGameStarted(true);
-      setStatus("Gra wystartowała!");
+      setStatus("START");
+      songStartRef.current = now; // Zapisz start lokalnie
 
-      if (onGameStateChangeRef.current) {
-        onGameStateChangeRef.current({
+      if (onGameStateChange) {
+        onGameStateChange({
           gameQueue: tracks,
           currentRound: 0,
           status: "PLAYING",
@@ -182,10 +143,10 @@ export default function QuizPlayer({
         });
       }
 
-      resolveAndPlayStream(tracks[0].urn, now);
+      resolveAndPlayStream(tracks[0], now);
     } catch (e: any) {
       console.error(e);
-      setStatus(`Błąd: ${e.message}`);
+      setStatus(`BŁĄD: ${e.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -193,7 +154,7 @@ export default function QuizPlayer({
 
   useEffect(() => {
     if (!roomId) return;
-    if (!isHost) setStatus("Czekanie na Hosta...");
+    if (!isHost) setStatus("OCZEKIWANIE...");
 
     const fetchInitialState = async () => {
       const { data } = await supabase
@@ -201,26 +162,8 @@ export default function QuizPlayer({
         .select("*")
         .eq("id", roomId)
         .single();
-      
       if (data?.status === "PLAYING" && data.gameQueue) {
-        setGameQueue(data.gameQueue);
-        setCurrentRound(data.currentRound);
-        setIsGameStarted(true);
-        setStatus("Dołączono do gry.");
-
-        if (onGameStateChangeRef.current) {
-          onGameStateChangeRef.current({
-            gameQueue: data.gameQueue,
-            currentRound: data.currentRound,
-            status: "PLAYING",
-            currentSongStart: data.currentSongStart,
-          });
-        }
-
-        const track = data.gameQueue[data.currentRound];
-        if (track && data.currentSongStart) {
-          resolveAndPlayStream(track.urn, data.currentSongStart);
-        }
+        handleNewState(data);
       }
     };
     fetchInitialState();
@@ -235,86 +178,112 @@ export default function QuizPlayer({
           table: "Room",
           filter: `id=eq.${roomId}`,
         },
-        (payload) => {
-          const newData = payload.new;
-          const currentQ = queueRef.current;
-          const currentR = roundRef.current;
-
-          if (newData.status === "PLAYING" && newData.gameQueue && !currentQ) {
-            setGameQueue(newData.gameQueue);
-            setIsGameStarted(true);
-            setCurrentRound(0);
-            setStatus("Gra wystartowała!");
-            if (onGameStateChangeRef.current) {
-              onGameStateChangeRef.current({
-                gameQueue: newData.gameQueue,
-                currentRound: 0,
-                status: "PLAYING",
-                currentSongStart: newData.currentSongStart,
-              });
-            }
-            if (newData.currentSongStart && newData.gameQueue[0]) {
-              resolveAndPlayStream(newData.gameQueue[0].urn, newData.currentSongStart);
-            }
-            return;
-          }
-
-          if (newData.currentRound !== undefined && currentQ && newData.currentRound !== currentR) {
-            setCurrentRound(newData.currentRound);
-            if (onGameStateChangeRef.current) {
-              onGameStateChangeRef.current({
-                currentRound: newData.currentRound,
-                currentSongStart: newData.currentSongStart,
-              });
-            }
-            const track = currentQ[newData.currentRound];
-            if (track && newData.currentSongStart) {
-              resolveAndPlayStream(track.urn, newData.currentSongStart);
-            }
-          }
-
-          if (newData.status === "FINISHED") {
-            setStatus("KONIEC GRY");
-            setStreamUrl(null);
-            if (onGameFinishRef.current) onGameFinishRef.current();
-          }
-        },
+        (payload) => handleNewState(payload.new),
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [roomId]); 
+  }, [roomId]);
 
-  const resolveAndPlayStream = async (urn: string, serverStartTime?: string) => {
-    if (playerRef.current) playerRef.current.pause();
+  const handleNewState = (newData: any) => {
+    const currentQ = queueRef.current;
+    const currentR = roundRef.current;
 
-    setStreamUrl(null); 
+    // Zapisujemy czas startu do refa, żeby timer go widział
+    if (newData.currentSongStart) {
+      songStartRef.current = newData.currentSongStart;
+    }
+
+    if (
+      newData.status === "PLAYING" &&
+      newData.gameQueue &&
+      (!currentQ || newData.currentRound === 0)
+    ) {
+      setGameQueue(newData.gameQueue);
+      setIsGameStarted(true);
+      setCurrentRound(0);
+      setStatus("");
+
+      if (onGameStateChange && !hasSyncedRef.current) {
+        hasSyncedRef.current = true;
+        onGameStateChange(newData);
+      }
+
+      if (newData.currentSongStart && newData.gameQueue[0]) {
+        resolveAndPlayStream(newData.gameQueue[0], newData.currentSongStart);
+      }
+    } else if (
+      newData.currentRound !== undefined &&
+      currentQ &&
+      newData.currentRound !== currentR
+    ) {
+      setCurrentRound(newData.currentRound);
+
+      if (onGameStateChange) onGameStateChange(newData);
+
+      const track = currentQ[newData.currentRound];
+      if (track && newData.currentSongStart) {
+        resolveAndPlayStream(track, newData.currentSongStart);
+      }
+    }
+
+    if (newData.status === "FINISHED") {
+      setStatus("KONIEC");
+      setStreamUrl(null);
+      onGameFinish();
+    }
+  };
+
+  const resolveAndPlayStream = async (
+    track: GameTrack,
+    serverStartTime?: string,
+  ) => {
+    setStreamUrl(null);
     setStatus("Ładowanie...");
-    setCurrentSongStartTime(serverStartTime || null);
 
     try {
       let finalUrl = "";
-      if (urn.startsWith("http")) {
+
+      if (track.source === "itunes" || track.urn.startsWith("http")) {
         setIsItunesSource(true);
-        finalUrl = urn;
+        finalUrl = track.urn;
       } else {
         setIsItunesSource(false);
-        const encodedUrn = encodeURIComponent(urn);
-        const res = await fetch(`/api/stream/${encodedUrn}`);
-        if (!res.ok) throw new Error("Błąd streamu SC");
+        const res = await fetch(`/api/stream/${encodeURIComponent(track.urn)}`);
         const data = await res.json();
         if (data.streamUrl) finalUrl = data.streamUrl;
       }
 
       if (finalUrl) {
         setStreamUrl(finalUrl);
-        setStatus(`Runda ${(roundRef.current || 0) + 1}`);
+        setStatus("");
+
+        // SYNCHRONIZACJA AUDIO (Tylko przewijanie, timer jest w osobnym useEffect)
+        setTimeout(() => {
+          if (serverStartTime && playerRef.current) {
+            const startTimeMs = new Date(serverStartTime).getTime();
+            const nowMs = Date.now();
+            const diffSec = (nowMs - startTimeMs) / 1000;
+
+            // Przewiń audio tylko jeśli jesteśmy w trakcie utworu
+            if (diffSec > 0 && diffSec < 29) {
+              playerRef.current.currentTime = diffSec;
+            } else {
+              // Jeśli coś nie tak z czasem, graj od początku
+              playerRef.current.currentTime = 0;
+            }
+
+            playerRef.current.play().catch(() => {
+              // Ignorujemy błędy autoplay (użytkownik musi kliknąć jeśli przeglądarka blokuje)
+            });
+          }
+        }, 200);
       }
     } catch (e) {
       console.error("Błąd audio:", e);
-      setStatus("Błąd audio - czekaj na następną rundę");
+      setStatus("BŁĄD AUDIO");
     }
   };
 
@@ -324,37 +293,41 @@ export default function QuizPlayer({
     const queue = queueRef.current;
 
     if (currentR + 1 >= queue.length) {
-      await supabase.from("Room").update({ status: "FINISHED" }).eq("id", roomId);
-      if (onGameFinishRef.current) onGameFinishRef.current();
+      await supabase
+        .from("Room")
+        .update({ status: "FINISHED" })
+        .eq("id", roomId);
+      onGameFinish();
       return;
     }
 
     const nextRound = currentR + 1;
     const now = new Date().toISOString();
-    await supabase.from("Room").update({ currentRound: nextRound, currentSongStart: now }).eq("id", roomId);
-    setCurrentRound(nextRound);
-    
-    if (onGameStateChangeRef.current) {
-      onGameStateChangeRef.current({ currentRound: nextRound, currentSongStart: now });
-    }
-    resolveAndPlayStream(queue[nextRound].urn, now);
+
+    await supabase
+      .from("Room")
+      .update({
+        currentRound: nextRound,
+        currentSongStart: now,
+      })
+      .eq("id", roomId);
   };
 
   const onAudioEnded = () => {
-    if (!isHostRef.current) return;
-    if (playerRef.current && playerRef.current.currentTime < 5) return;
-    handleNextRound();
+    if (isHostRef.current) handleNextRound();
   };
 
   if (!isGameStarted) {
     return (
-      <div className="flex flex-col items-center gap-4 mt-10 w-full max-w-md mx-auto">
-        <h2 className="text-white text-2xl uppercase font-bold">{mode} MODE</h2>
+      <div className="flex flex-col items-center gap-4 mt-10 w-full max-w-md mx-auto animate-fade-in p-4">
+        <h2 className="text-white text-3xl uppercase font-bold neon-text">
+          {mode} MODE
+        </h2>
         {isHost ? (
-          <div className="flex flex-col gap-3 w-full items-center">
+          <div className="flex flex-col gap-3 w-full items-center quiz-card">
             {mode === "playlist" && !initialQuery && (
               <input
-                className="p-3 rounded text-black w-full"
+                className="p-3 rounded bg-black border border-green-500 text-white w-full focus:outline-none focus:ring-2 focus:ring-green-400"
                 placeholder="Wklej link..."
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
@@ -362,7 +335,7 @@ export default function QuizPlayer({
             )}
             {mode === "artist" && !initialQuery && (
               <input
-                className="p-3 rounded text-black w-full"
+                className="p-3 rounded bg-black border border-green-500 text-white w-full focus:outline-none focus:ring-2 focus:ring-green-400"
                 placeholder="Wpisz np. Tame Impala..."
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
@@ -371,16 +344,24 @@ export default function QuizPlayer({
             <button
               onClick={handleStartGame}
               disabled={isLoading}
-              className="bg-green-500 text-black font-bold py-3 px-8 rounded-full hover:bg-green-400 transition-all w-full shadow-lg"
+              className="skip-button mt-4 bg-green-600 hover:bg-green-500 text-white"
+              style={{
+                background: "#4ade80",
+                color: "black",
+                borderColor: "#4ade80",
+              }}
             >
               {isLoading ? "POBIERANIE..." : "START GAME"}
             </button>
             {status && <p className="text-yellow-400 text-sm mt-2">{status}</p>}
           </div>
         ) : (
-          <div className="text-white animate-pulse text-center">
+          <div className="text-white text-center quiz-card">
+            <div className="loading-spinner mx-auto"></div>
             <p className="text-xl font-bold">OCZEKIWANIE NA HOSTA</p>
-            <p className="text-sm text-gray-400 mt-2">Host konfiguruje rozgrywkę...</p>
+            <p className="text-sm text-gray-400 mt-2">
+              Host konfiguruje rozgrywkę...
+            </p>
           </div>
         )}
       </div>
@@ -388,13 +369,35 @@ export default function QuizPlayer({
   }
 
   return (
-    <div className="flex flex-col items-center gap-6 w-full max-w-2xl mx-auto p-4">
-      <div className="flex justify-between w-full text-white font-bold text-lg border-b border-gray-700 pb-2">
-        <span>Runda {currentRound + 1} / {gameQueue?.length}</span>
-        <span className="text-green-400">{status}</span>
+    <div className="quiz-card animate-fade-in">
+      <div className="quiz-header">
+        <div className="round-info">
+          RUNDA <span style={{ color: "#4ade80" }}>{currentRound + 1}</span> /{" "}
+          {gameQueue?.length}
+        </div>
+        <div className="game-status">{status}</div>
       </div>
 
-      <div className="w-full bg-gray-900/80 p-6 rounded-xl flex flex-col items-center justify-center min-h-[120px] shadow-2xl border border-gray-700">
+      {streamUrl && (
+        <div className="timer-container">
+          <div className="timer-labels">
+            {/* Formatowanie z jednym miejscem po przecinku */}
+            <span
+              className={`timer-text-display ${timeLeft < 10 ? "timer-text-critical" : ""}`}
+            >
+              {timeLeft.toFixed(1)}s
+            </span>
+          </div>
+          <div className="timer-track">
+            <div
+              className={`timer-fill ${timeLeft < 10 ? "critical" : ""}`}
+              style={{ width: `${(timeLeft / 30) * 100}%` }}
+            ></div>
+          </div>
+        </div>
+      )}
+
+      <div className="player-visualizer">
         {streamUrl ? (
           <>
             {isItunesSource ? (
@@ -402,59 +405,49 @@ export default function QuizPlayer({
                 ref={playerRef}
                 src={streamUrl}
                 controls={false}
-                // WAŻNE: onPlay i onLoadedData wymuszają aktualną głośność
-                onPlay={enforceVolume}
-                onLoadedData={enforceVolume}
+                autoPlay
                 onEnded={onAudioEnded}
               />
             ) : (
-              <HlsPlayer 
-                src={streamUrl} 
-                playerRef={playerRef}
-                onPlay={enforceVolume} 
-                onLoadedData={enforceVolume} 
-              />
+              <HlsPlayer src={streamUrl} playerRef={playerRef} />
             )}
-            <div className="flex items-center gap-3">
-              <div className="flex gap-1 h-8 items-end">
-                <div className="w-1 bg-green-500 animate-[bounce_1s_infinite] h-4"></div>
-                <div className="w-1 bg-green-500 animate-[bounce_1.2s_infinite] h-6"></div>
-                <div className="w-1 bg-green-500 animate-[bounce_0.8s_infinite] h-3"></div>
-              </div>
-              <span className="text-white font-bold tracking-widest text-xl">ON AIR</span>
+
+            <div className="music-pulse">
+              <span className="music-icon">🎵</span>
             </div>
-            {isHost && gameQueue && gameQueue[currentRound] && (
-              <div className="mt-6 p-3 bg-black/50 border border-yellow-500/50 rounded-lg text-center animate-fade-in">
-                <p className="text-xs text-yellow-500/80 font-mono mb-1 uppercase tracking-widest">
-                  👁️ Host Preview
-                </p>
-                <p className="text-yellow-300 font-bold text-lg">
-                  {gameQueue[currentRound].artist} - {gameQueue[currentRound].title}
+
+            <div className="on-air-container">
+              <div className="eq-bars">
+                <div className="eq-bar"></div>
+                <div className="eq-bar"></div>
+                <div className="eq-bar"></div>
+                <div className="eq-bar"></div>
+              </div>
+              <span className="on-air-text">ON AIR</span>
+            </div>
+
+            {/* {isHost && gameQueue && gameQueue[currentRound] && (
+              <div className="host-preview">
+                <p className="host-label">👁️ Host Preview</p>
+                <p className="host-track-name">
+                  {gameQueue[currentRound].artist} -{" "}
+                  {gameQueue[currentRound].title}
                 </p>
               </div>
-            )}
+            )} */}
           </>
         ) : (
-          <div className="flex flex-col items-center gap-2">
-            <div className="animate-spin h-8 w-8 border-4 border-green-500 rounded-full border-t-transparent" />
-            <p className="text-gray-400 text-sm">Synchronizacja...</p>
-          </div>
+          <>
+            <div className="loading-spinner"></div>
+            <p className="text-gray-400 text-sm">SYNCHRONIZACJA...</p>
+          </>
         )}
       </div>
 
       {isHost && (
-        <button
-          onClick={handleNextRound}
-          className="bg-gray-700 hover:bg-gray-600 text-white px-8 py-3 rounded-lg font-bold shadow-lg transition w-full max-w-xs border border-gray-600"
-        >
+        <button onClick={handleNextRound} className="skip-button">
           SKIP ROUND ⏭
         </button>
-      )}
-
-      {!isHost && (
-        <p className="text-gray-500 text-sm italic">
-          Słuchaj muzyki i zgaduj tytuł na czacie po prawej!
-        </p>
       )}
     </div>
   );

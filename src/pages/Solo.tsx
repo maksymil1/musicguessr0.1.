@@ -1,23 +1,39 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../context/AuthContext";
-import { useVolume } from "../context/VolumeContext"; // Import kontekstu
+import { useVolume } from "../context/VolumeContext";
 import MenuButton from "../components/MenuButton/MenuButton.tsx";
 import "./Ranking.css";
 
 const LEVELS = [0.1, 0.5, 1, 3, 7, 15, 30];
 const POINTS_PER_LEVEL = [100, 80, 60, 40, 20, 10, 5];
 
+// --- ROZBUDOWANE LISTY ---
+const GENRES = [
+  "Pop", "Hip-Hop", "Rap", "Rock", "Alternative", "Electronic", 
+  "Dance", "R&B", "Soul", "Metal", "Jazz", "Classical", 
+  "Reggae", "K-Pop", "Latino", "Indie", "Country", "Blues", 
+  "Folk", "Punk", "Techno", "House", "Disco", "Funk", 
+  "Gospel", "Soundtrack", "Trap", "Grunge"
+];
+
+const DECADES = [
+  "2024", "2023", "2020s", "2010s", 
+  "2000s", "1990s", "1980s", "1970s", "1960s", "1950s"
+];
+
 export default function Solo() {
   const { user } = useAuth();
-  // POBIERAMY GŁOŚNOŚĆ I STAN WYCISZENIA
-  const { volume, isMuted } = useVolume(); 
+  const { volume, isMuted } = useVolume();
   
   const [targetTrack, setTargetTrack] = useState<any>(null);
   const [gameState, setGameState] = useState<"setup" | "playing" | "result">("setup");
+  
+  // Setup state
   const [category, setCategory] = useState<"popular" | "artist" | "genre" | "years">("popular");
-  const [subValue, setSubValue] = useState("");
+  const [subValue, setSubValue] = useState(""); // Przechowuje wybrany gatunek/rok/artystę
 
+  // Gameplay state
   const [currentAttempt, setCurrentAttempt] = useState(0);
   const [guess, setGuess] = useState("");
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -28,18 +44,17 @@ export default function Solo() {
   const [feedback, setFeedback] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // --- OBSŁUGA GŁOŚNOŚCI NA ŻYWO ---
+  // --- VOLUME SYNC ---
   useEffect(() => {
     if (audioRef.current) {
-      // Jeśli wyciszone -> 0, w przeciwnym razie ustaw suwak
       audioRef.current.volume = isMuted ? 0 : volume / 100;
     }
   }, [volume, isMuted]);
-  // ----------------------------------
 
   const normalizeText = (text: string) =>
     text.toLowerCase().replace(/[^a-z0-9]/g, "").trim();
 
+  // --- AUTOCOMPLETE ---
   useEffect(() => {
     const timer = setTimeout(async () => {
       if (guess.length > 2) {
@@ -86,29 +101,40 @@ export default function Solo() {
   };
 
   const fetchTrack = async () => {
+    // Walidacja przed startem
+    if ((category === "artist" || category === "genre" || category === "years") && !subValue) {
+        alert("Wybierz opcję (Artystę, Gatunek lub Rok) przed startem!");
+        return;
+    }
+
     setGameState("setup");
     setAttemptsHistory([]);
     setFeedback("");
     try {
       let searchTerm = "";
-      if (category === "popular") searchTerm = "top charts hits";
+      // Ulepszone zapytania
+      if (category === "popular") searchTerm = "top charts hits 2024";
       else if (category === "artist") searchTerm = subValue;
-      else if (category === "genre") searchTerm = subValue + " hits";
-      else if (category === "years") searchTerm = subValue + " hits";
+      else if (category === "genre") searchTerm = `best ${subValue} songs`;
+      else if (category === "years") searchTerm = `top hits ${subValue}`;
 
       const res = await fetch(
         `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&entity=song&limit=200`
       );
       const data = await res.json();
+      
       let available = data.results.filter((t: any) => {
         const name = t.trackName.toLowerCase();
         return !playedIds.includes(t.trackId) && !name.includes("karaoke") && !name.includes("tribute");
       });
+
       if (category === "artist") {
-        available = available.filter((t: any) => t.artistName.toLowerCase() === subValue.toLowerCase());
+        available = available.filter((t: any) => t.artistName.toLowerCase().includes(subValue.toLowerCase()));
       }
+
+      if (available.length === 0) return alert("Brak utworów dla tego zapytania!");
+
       const track = available[Math.floor(Math.random() * available.length)];
-      if (!track) return alert("Brak utworów!");
 
       setTargetTrack({
         id: track.trackId,
@@ -156,7 +182,6 @@ export default function Solo() {
   const playPreview = () => {
     if (!audioRef.current || isPlaying) return;
     
-    // Aplikujemy głośność przed startem
     audioRef.current.volume = isMuted ? 0 : volume / 100;
     
     setIsPlaying(true);
@@ -170,32 +195,76 @@ export default function Solo() {
 
   return (
     <div className="ranking-master">
-      <div className="ranking-card" style={{ maxWidth: "600px", minHeight: "650px" }}>
+      <div className="ranking-card" style={{ maxWidth: "600px", minHeight: "700px", display: "flex", flexDirection: "column" }}>
         <h1 className="neon-text">SONGLESS</h1>
 
         {gameState === "setup" ? (
-          <div className="setup-section">
-             {/* ... (SEKCJA WYBORU KATEGORII - BEZ ZMIAN W HTML) ... */}
-             <div className="category-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
-              <button onClick={() => { setCategory("popular"); setSubValue(""); }} className={category === "popular" ? "btn-active" : "btn-off"}>TOP HITS</button>
-              <button onClick={() => { setCategory("artist"); setSubValue(""); }} className={category === "artist" ? "btn-active" : "btn-off"}>ARTIST</button>
-              <button onClick={() => { setCategory("genre"); setSubValue(""); }} className={category === "genre" ? "btn-active" : "btn-off"}>GENRE</button>
-              <button onClick={() => { setCategory("years"); setSubValue(""); }} className={category === "years" ? "btn-active" : "btn-off"}>YEARS</button>
-            </div>
-            {category === "artist" && <input type="text" placeholder="Wpisz artystę..." value={subValue} onChange={(e) => setSubValue(e.target.value)} className="invite-form-input" />}
-            {category === "genre" && (
-              <select value={subValue} onChange={(e) => setSubValue(e.target.value)} style={inputStyle}>
-                <option value="">Wybierz gatunek...</option>
-                <option value="Rock">Rock</option><option value="Pop">Pop</option><option value="Hip-Hop">Hip-Hop</option>
-              </select>
-            )}
-            {category === "years" && (
-              <select value={subValue} onChange={(e) => setSubValue(e.target.value)} style={inputStyle}>
-                <option value="">Wybierz lata...</option>
-                <option value="2000">Lata 2000s</option><option value="2010">Lata 2010s</option>
-              </select>
-            )}
-            <button onClick={() => fetchTrack()} className="menu-button" style={{ background: "#4ade80", color: "#000", marginTop: "20px", width: "100%" }}>START</button>
+          <div className="setup-section" style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+             
+             {/* 1. KATEGORIE - STYLEM ZAKŁADEK */}
+             <div className="category-tabs">
+                <button onClick={() => { setCategory("popular"); setSubValue(""); }} className={category === "popular" ? "tab-active" : "tab-off"}>TOP HITS</button>
+                <button onClick={() => { setCategory("artist"); setSubValue(""); }} className={category === "artist" ? "tab-active" : "tab-off"}>ARTIST</button>
+                <button onClick={() => { setCategory("genre"); setSubValue(""); }} className={category === "genre" ? "tab-active" : "tab-off"}>GENRE</button>
+                <button onClick={() => { setCategory("years"); setSubValue(""); }} className={category === "years" ? "tab-active" : "tab-off"}>YEARS</button>
+             </div>
+
+             {/* 2. WYBÓR SZCZEGÓŁÓW */}
+             <div style={{ flex: 1, overflowY: "auto", marginBottom: "20px", paddingRight: "5px" }} className="custom-scrollbar">
+                
+                {/* ARTYSTA - Input Szklany */}
+                {category === "artist" && (
+                    <div className="search-bar-container">
+                        <span className="search-icon">🎤</span>
+                        <input 
+                            type="text" 
+                            placeholder="Wpisz np. The Weeknd..." 
+                            value={subValue} 
+                            onChange={(e) => setSubValue(e.target.value)} 
+                            className="search-input"
+                        />
+                    </div>
+                )}
+
+                {/* GATUNKI - Kafelki */}
+                {category === "genre" && (
+                    <div className="chips-grid">
+                        {GENRES.map(g => (
+                            <button 
+                                key={g} 
+                                onClick={() => setSubValue(g)} 
+                                className={`chip-btn ${subValue === g ? "chip-selected" : ""}`}
+                            >
+                                {g}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {/* LATA - Kafelki */}
+                {category === "years" && (
+                    <div className="chips-grid">
+                        {DECADES.map(d => (
+                            <button 
+                                key={d} 
+                                onClick={() => setSubValue(d)} 
+                                className={`chip-btn ${subValue === d ? "chip-selected-yellow" : ""}`}
+                                style={{ borderColor: subValue === d ? "#facc15" : "rgba(255,255,255,0.1)", color: subValue === d ? "black" : "#facc15" }}
+                            >
+                                {d}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {category === "popular" && (
+                    <div style={{textAlign: "center", padding: "20px", color: "#aaa", fontStyle: "italic"}}>
+                        Tryb mieszany. Losowe hity z list przebojów.
+                    </div>
+                )}
+             </div>
+
+             <button onClick={() => fetchTrack()} className="menu-button" style={{ background: "#4ade80", color: "#000", width: "100%", fontSize: "1.2rem" }}>START GAME</button>
           </div>
         ) : gameState === "playing" ? (
           <div className="game-container">
@@ -204,6 +273,7 @@ export default function Solo() {
                 <div key={idx} style={{ flex: level, background: idx <= currentAttempt ? "#4ade80" : "#444", borderRight: "1px solid #111" }} />
               ))}
             </div>
+            
             <div className="history-list" style={{ marginBottom: "20px" }}>
               {[...Array(LEVELS.length)].map((_, idx) => (
                 <div key={idx} className="history-item" style={{ height: "35px", border: "1px solid #333", marginBottom: "5px", display: "flex", alignItems: "center", padding: "0 10px", fontSize: "0.8rem", background: attemptsHistory[idx] ? "rgba(255, 71, 87, 0.15)" : "transparent", color: attemptsHistory[idx] ? "#ff4757" : "#555" }}>
@@ -211,7 +281,9 @@ export default function Solo() {
                 </div>
               ))}
             </div>
+            
             <button onClick={playPreview} className="play-btn-large">{isPlaying ? "..." : "▶"}</button>
+            
             <div style={{ position: "relative", marginTop: "20px" }}>
               <input type="text" placeholder="Znasz tytuł?" value={guess} onChange={(e) => setGuess(e.target.value)} autoComplete="off" style={inputStyle} onKeyDown={(e) => e.key === "Enter" && handleGuess()} />
               {suggestions.length > 0 && (
@@ -229,29 +301,59 @@ export default function Solo() {
             <audio ref={audioRef} src={targetTrack.preview} />
           </div>
         ) : (
-          <div className="result-container">
-            <h2 style={{ color: feedback === "CORRECT!" ? "#4ade80" : "#ff4757" }}>{feedback}</h2>
-            {feedback === "CORRECT!" && <p style={{color: '#ffd700', fontWeight: 'bold'}}>+{POINTS_PER_LEVEL[currentAttempt]} PKT</p>}
-            <img src={targetTrack.cover} style={{ width: "150px", borderRadius: "10px", margin: "20px 0", boxShadow: "0 0 20px rgba(74,222,128,0.3)" }} />
-            <p style={{ fontSize: "1.3rem" }}><strong>{targetTrack.name}</strong></p>
-            <p style={{ color: "#aaa" }}>{targetTrack.artist}</p>
+          <div className="result-container animate-fade-in">
+            <h2 style={{ color: feedback === "CORRECT!" ? "#4ade80" : "#ff4757", fontSize: "2rem" }}>{feedback}</h2>
+            {feedback === "CORRECT!" && <p style={{color: '#ffd700', fontWeight: 'bold', fontSize: "1.5rem"}}>+{POINTS_PER_LEVEL[currentAttempt]} PKT</p>}
+            
+            <img src={targetTrack.cover} style={{ width: "200px", borderRadius: "15px", margin: "20px 0", boxShadow: "0 0 30px rgba(74,222,128,0.2)" }} />
+            
+            <p style={{ fontSize: "1.5rem", marginBottom: "5px" }}><strong>{targetTrack.name}</strong></p>
+            <p style={{ color: "#aaa", fontSize: "1.1rem" }}>{targetTrack.artist}</p>
+            
             <button onClick={() => fetchTrack()} className="menu-button" style={{ background: "#4ade80", color: "#000", marginTop: "30px", width: "100%" }}>GRAJ DALEJ</button>
           </div>
         )}
-        <div style={{ paddingTop: "20px" }}><MenuButton label="EXIT" to="/" external={false} /></div>
+        
+        <div style={{ paddingTop: "20px", alignSelf: "center" }}><MenuButton label="EXIT" to="/" external={false} /></div>
       </div>
+
        <style>{`
-        .btn-active { background: #4ade80; color: #000; padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        .btn-off { background: #222; color: #fff; padding: 10px; border: 1px solid #444; border-radius: 5px; cursor: pointer; }
-        .play-btn-large { width: 70px; height: 70px; border-radius: 50%; background: #4ade80; border: none; font-size: 1.5rem; cursor: pointer; display: block; margin: 0 auto; transition: 0.2s; }
-        .play-btn-large:hover { transform: scale(1.1); box-shadow: 0 0 15px #4ade80; }
-        .suggestions-box { position: absolute; bottom: 100%; left: 0; right: 0; background: #222; border: 1px solid #444; z-index: 10; max-height: 200px; overflow-y: auto; }
-        .suggestion-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #333; font-size: 0.8rem; text-align: left; }
+        /* STYLE ZAKŁADEK I INPUTÓW (TO SAMO CO W MUSICPAGE) */
+        .category-tabs {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 8px;
+          margin-bottom: 20px;
+          background: rgba(0,0,0,0.3);
+          padding: 5px;
+          border-radius: 12px;
+        }
+        .tab-active { background: #4ade80; color: black; border: none; padding: 8px; border-radius: 8px; font-weight: bold; font-size: 0.8rem; cursor: default; }
+        .tab-off { background: transparent; color: #aaa; border: none; padding: 8px; border-radius: 8px; font-size: 0.8rem; cursor: pointer; transition: 0.2s; }
+        .tab-off:hover { background: rgba(255,255,255,0.1); color: white; }
+
+        .chips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(85px, 1fr)); gap: 10px; }
+        .chip-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); color: #ccc; padding: 10px 5px; border-radius: 10px; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; }
+        .chip-btn:hover { border-color: #4ade80; color: white; }
+        .chip-selected { background: #4ade80 !important; color: black !important; border-color: #4ade80 !important; font-weight: bold; }
+        .chip-selected-yellow { background: #facc15 !important; color: black !important; border-color: #facc15 !important; font-weight: bold; }
+
+        .search-bar-container { display: flex; alignItems: center; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 12px; padding: 10px; transition: all 0.3s ease; }
+        .search-bar-container:focus-within { border-color: #4ade80; box-shadow: 0 0 15px rgba(74, 222, 128, 0.2); background: rgba(0, 0, 0, 0.6); }
+        .search-input { flex: 1; background: transparent; border: none; color: white; font-size: 1rem; outline: none; margin-left: 10px; }
+
+        .play-btn-large { width: 80px; height: 80px; border-radius: 50%; background: #4ade80; border: none; font-size: 1.8rem; cursor: pointer; display: block; margin: 0 auto; transition: 0.2s; color: black; }
+        .play-btn-large:hover { transform: scale(1.1); box-shadow: 0 0 20px #4ade80; }
+        
+        .suggestions-box { position: absolute; bottom: 100%; left: 0; right: 0; background: #222; border: 1px solid #444; z-index: 10; max-height: 200px; overflow-y: auto; border-radius: 10px; }
+        .suggestion-item { padding: 12px; cursor: pointer; border-bottom: 1px solid #333; font-size: 0.9rem; text-align: left; }
         .suggestion-item:hover { background: #333; color: #4ade80; }
-        .action-btn-green { flex: 1; padding: 12px; background: #4ade80; color: #000; border: none; font-weight: bold; cursor: pointer; border-radius: 5px; }
-        .action-btn-gray { flex: 1; padding: 12px; background: #333; color: #fff; border: none; cursor: pointer; border-radius: 5px; }
+
+        .action-btn-green { flex: 1; padding: 15px; background: #4ade80; color: #000; border: none; font-weight: bold; cursor: pointer; border-radius: 8px; font-size: 1rem; }
+        .action-btn-gray { flex: 1; padding: 15px; background: #333; color: #fff; border: none; cursor: pointer; border-radius: 8px; font-size: 1rem; }
       `}</style>
     </div>
   );
 }
-const inputStyle = { width: "100%", padding: "12px", background: "#111", color: "#fff", border: "1px solid #4ade80", borderRadius: "10px" };
+
+const inputStyle = { width: "100%", padding: "15px", background: "#111", color: "#fff", border: "1px solid #4ade80", borderRadius: "10px", fontSize: "1rem" };

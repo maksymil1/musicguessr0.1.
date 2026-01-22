@@ -12,18 +12,17 @@ interface FriendRequest {
   receiverNick: string;
   status: "PENDING" | "ACCEPTED";
   createdAt: string;
-  // Rozszerzone statystyki o Multi
+  avatarUrl?: string; // <--- NOWE POLE
   friendStats?: {
     guessed_percentage: number;
     games_played: number;
-    multi_points: number; // To są punkty z bazy Profiles
+    multi_points: number;
   };
 }
 
 export default function Friends() {
   const { user } = useAuth();
   
-  // Nick użytkownika
   const myNickname = user?.user_metadata?.nickname || user?.email?.split('@')[0] || "";
 
   const [friends, setFriends] = useState<FriendRequest[]>([]);
@@ -55,35 +54,31 @@ export default function Friends() {
       if (friendsError) console.error("Error fetching friends:", friendsError);
       if (requestsError) console.error("Error fetching requests:", requestsError);
 
-      // --- 3. DOCIĄGNIJ PEŁNE STATYSTYKI ---
+      // --- 3. DOCIĄGNIJ STATYSTYKI I AWATARY ---
       let enrichedFriends: FriendRequest[] = friendsData || [];
 
       if (friendsData && friendsData.length > 0) {
-        // Wyciągnij listę nicków znajomych
         const friendNicknames = friendsData.map(f => 
           f.senderNick === myNickname ? f.receiverNick : f.senderNick
         );
 
-        // A. Pobierz WSZYSTKO z Profiles (Single + Multi points)
-        // ZMIANA: Dodano 'points' do zapytania i usunięto pobieranie z Player
+        // ZMIANA: Dodano 'avatar_url' do zapytania
         const { data: profilesData } = await supabase
           .from("Profiles")
-          .select("nickname, guessed_percentage, games_played, points")
+          .select("nickname, guessed_percentage, games_played, points, avatar_url")
           .in("nickname", friendNicknames);
 
-        // Łączenie danych
         enrichedFriends = friendsData.map(f => {
           const friendNick = f.senderNick === myNickname ? f.receiverNick : f.senderNick;
-          
-          // Znajdź profil znajomego
-          const profileStats = profilesData?.find(p => p.nickname === friendNick);
+          const profile = profilesData?.find(p => p.nickname === friendNick);
           
           return {
             ...f,
-            friendStats: profileStats ? {
-              guessed_percentage: profileStats.guessed_percentage || 0,
-              games_played: profileStats.games_played || 0,
-              multi_points: profileStats.points || 0 // ZMIANA: Bierzemy gotowe punkty z bazy
+            avatarUrl: profile?.avatar_url, // Przypisujemy avatar
+            friendStats: profile ? {
+              guessed_percentage: profile.guessed_percentage || 0,
+              games_played: profile.games_played || 0,
+              multi_points: profile.points || 0
             } : undefined
           };
         });
@@ -204,24 +199,32 @@ export default function Friends() {
                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
                       >
                         <div className="friend-meta" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                          <div className="avatar-small">{friendNick[0].toUpperCase()}</div>
+                          
+                          {/* --- AWATAR ZNAJOMEGO --- */}
+                          <div className="avatar-small" style={{ 
+                             width: '40px', height: '40px', borderRadius: '50%', 
+                             overflow: 'hidden', border: '2px solid #555', 
+                             display: 'flex', alignItems: 'center', justifyContent: 'center',
+                             backgroundColor: '#333'
+                          }}>
+                            {f.avatarUrl ? (
+                                <img src={f.avatarUrl} alt={friendNick} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                                <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{friendNick[0].toUpperCase()}</span>
+                            )}
+                          </div>
+
                           <div style={{ textAlign: 'left' }}>
                             <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{friendNick}</div>
                             
-                            {/* --- WYŚWIETLANIE OBU STATYSTYK --- */}
                             {f.friendStats && (
                               <div style={{ display: 'flex', gap: '12px', fontSize: '0.8rem', color: '#aaa', marginTop: '4px' }}>
-                                
-                                {/* SINGLEPLAYER - SKUTECZNOŚĆ */}
-                                <span title="Skuteczność Single (Zielony)" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span title="Skuteczność Single" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                   🎯 <span style={{ color: '#4ade80', fontWeight: 'bold' }}>{f.friendStats.guessed_percentage}%</span>
                                 </span>
-
-                                {/* MULTIPLAYER - PUNKTY (TERAZ POPRAWNE) */}
-                                <span title="Punkty Multiplayer (Złoty)" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span title="Punkty Multiplayer" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                   🌐 <span style={{ color: '#facc15', fontWeight: 'bold' }}>{f.friendStats.multi_points}</span>
                                 </span>
-
                               </div>
                             )}
                             {!f.friendStats && <span style={{fontSize: '0.7rem', color: '#555'}}>Brak danych</span>}

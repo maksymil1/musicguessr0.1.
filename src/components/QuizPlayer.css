@@ -1,0 +1,208 @@
+/* src/components/QuizPlayer.css */
+
+.quiz-card {
+    background: rgba(20, 20, 20, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    border-radius: 20px;
+    padding: 20px;
+    width: 100%;
+    margin: 0 auto;
+    box-shadow: 0 0 40px rgba(74, 222, 128, 0.05);
+    color: white;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.quiz-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 10px;
+}
+
+.round-info {
+    font-size: 1rem;
+    font-weight: bold;
+    letter-spacing: 1px;
+    color: #ddd;
+}
+
+.game-status {
+    font-size: 0.8rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    color: #4ade80;
+    text-shadow: 0 0 5px rgba(74, 222, 128, 0.4);
+}
+
+.player-visualizer {
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    margin-bottom: 20px;
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.music-pulse {
+    width: 70px;
+    height: 70px;
+    background: radial-gradient(circle, #4ade80 0%, #225533 100%);
+    border-radius: 50%;
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7);
+    animation: pulse-green 1.5s infinite;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 15px;
+}
+
+.music-icon {
+    font-size: 1.8rem;
+}
+
+@keyframes pulse-green {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(74, 222, 128, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+}
+
+.on-air-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.eq-bars {
+    display: flex;
+    gap: 3px;
+    align-items: flex-end;
+    height: 20px;
+}
+
+.eq-bar {
+    width: 5px;
+    background: #4ade80;
+    border-radius: 2px;
+    animation: eq-bounce 0.8s infinite ease-in-out;
+}
+.eq-bar:nth-child(1) { height: 8px; animation-delay: 0s; }
+.eq-bar:nth-child(2) { height: 16px; animation-delay: 0.1s; }
+.eq-bar:nth-child(3) { height: 12px; animation-delay: 0.2s; }
+.eq-bar:nth-child(4) { height: 18px; animation-delay: 0.15s; }
+
+@keyframes eq-bounce {
+    0%, 100% { transform: scaleY(0.5); }
+    50% { transform: scaleY(1); }
+}
+
+.on-air-text {
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: white;
+    font-size: 1rem;
+}
+
+.timer-container {
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.timer-labels {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 5px;
+}
+
+.timer-text-display {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    font-size: 1.2rem;
+    color: #4ade80;
+}
+
+.timer-text-critical {
+    color: #ef4444;
+    animation: blink-text 0.5s infinite;
+}
+
+@keyframes blink-text { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+.timer-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.timer-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4ade80, #22c55e);
+    transition: width 0.1s linear;
+}
+
+.timer-fill.critical {
+    background: linear-gradient(90deg, #ef4444, #b91c1c);
+}
+
+.host-preview {
+    margin-top: 15px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px dashed rgba(255, 215, 0, 0.5);
+    border-radius: 8px;
+    width: 100%;
+}
+
+.host-label {
+    font-size: 0.6rem;
+    color: #ffd700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.host-track-name {
+    font-weight: bold;
+    color: #fff;
+    font-size: 0.9rem;
+    word-break: break-word;
+}
+
+.skip-button {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 12px;
+    border-radius: 10px;
+    font-weight: bold;
+    font-size: 0.9rem;
+    cursor: pointer;
+    width: 100%;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* MEDIA QUERIES */
+@media (max-width: 600px) {
+    .quiz-card { padding: 15px; border-radius: 16px; }
+    .quiz-header { margin-bottom: 10px; padding-bottom: 8px; }
+    .round-info { font-size: 0.9rem; }
+    .game-status { font-size: 0.7rem; }
+    .player-visualizer { min-height: 140px; padding: 15px; }
+    .music-pulse { width: 50px; height: 50px; }
+    .music-icon { font-size: 1.4rem; }
+    .on-air-text { font-size: 0.8rem; }
+    .timer-text-display { font-size: 1rem; }
+    .skip-button { padding: 10px; font-size: 0.8rem; }
+}

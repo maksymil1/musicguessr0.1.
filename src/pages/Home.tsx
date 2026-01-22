@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { supabase } from "../../lib/supabaseClient";
 
 import "./home.css";
 import logo from "../assets/logo.png";
@@ -9,9 +10,27 @@ import speakerRight from "../assets/speaker-right.png";
 import MenuButton from "../components/MenuButton/MenuButton.tsx";
 
 export default function Home() {
-  const { user, signOut, loading } = useAuth(); // Pobieranie danych z kontekstu
+  const { user, signOut, loading } = useAuth();
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
-  // Główna lista przycisków na środku
+  // Pobieramy awatar użytkownika, jeśli jest zalogowany
+  useEffect(() => {
+    const fetchAvatar = async () => {
+      if (!user) return;
+      
+      const { data } = await supabase
+        .from("Profiles")
+        .select("avatar_url")
+        .eq("id", user.id)
+        .single();
+      
+      if (data) {
+        setAvatarUrl(data.avatar_url);
+      }
+    };
+    fetchAvatar();
+  }, [user]);
+
   const buttons = useMemo(() => [
     { label: "PLAY", screen: "/tryb" },
     { label: "FRIENDS", screen: "/friends" },
@@ -19,13 +38,12 @@ export default function Home() {
     { label: "EXPLORE", screen: "/search" },
   ], []);
 
-  // Pobieramy nick z metadanych, jeśli nie ma - pokazujemy email jako fallback
-  const userNick = user?.user_metadata?.nickname || user?.email; // Nickname zapisany podczas rejestracji
+  const userNick = user?.user_metadata?.nickname || user?.email;
 
   return (
     <div className="master">
       
-      {/* SEKCJA LOGOWANIA I PROFILU W PRAWYM GÓRNYM ROGU */}
+      {/* SEKCJA LOGOWANIA I PROFILU */}
       <div style={{ 
         position: 'absolute', 
         top: '20px', 
@@ -44,23 +62,41 @@ export default function Home() {
               alignItems: 'center',
               gap: '15px' 
             }}>
-              {/* IKONKA PROFILU JAKO ODNOŚNIK */}
+              {/* IKONKA PROFILU Z AWATAREM */}
               <NavLink 
                 to="/profile" 
                 style={{ 
                   textDecoration: 'none', 
-                  fontSize: '1.5rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  transition: 'transform 0.2s'
+                  display: 'block',
+                  transition: 'transform 0.2s',
+                  position: 'relative'
                 }}
                 className="profile-avatar-link"
                 title="Przejdź do profilu"
               >
-                👤
+                <div style={{
+                  width: '45px',
+                  height: '45px',
+                  borderRadius: '50%',
+                  overflow: 'hidden',
+                  border: '2px solid #4ade80',
+                  background: '#374151',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  {avatarUrl ? (
+                    <img 
+                      src={avatarUrl} 
+                      alt="Avatar" 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                    />
+                  ) : (
+                    <span style={{ fontSize: '1.2rem' }}>👤</span>
+                  )}
+                </div>
               </NavLink>
 
-              {/* ZMIENIONE: Wyświetla NICK zamiast EMAIL */}
               <span style={{ color: '#4ade80', fontWeight: 'bold' }}>{userNick}</span>
               
               <button onClick={signOut} className="logout-glass-btn">
@@ -68,7 +104,6 @@ export default function Home() {
               </button>
             </div>
           ) : (
-            /* PRZYCISK LOGOWANIA DLA NIEZALOGOWANYCH */
             <NavLink 
               to="/login" 
               className="menu-button" 
@@ -86,7 +121,6 @@ export default function Home() {
       </div>
 
       <div className="home-container">
-        {/* Logo */}
         <img src={logo} alt="MusicGuessr logo" className="logo" />
 
         <div className="buttons">
@@ -100,7 +134,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Głośniki */}
       <div className="speakers-container">
         <div className="speaker-left">
           <img src={speakerLeft} alt="Left speaker" />

@@ -1,0 +1,57 @@
+/* src/pages/MultiplayerGame.css */
+
+/* Główny kontener layoutu */
+.multiplayer-layout {
+    display: flex;
+    flex-direction: row; /* Domyślnie (PC): obok siebie */
+    width: 100%;
+    height: 100%;
+    padding: 20px;
+    gap: 20px;
+    margin: 0 auto;
+    transition: max-width 0.5s ease;
+}
+
+/* Lewa kolumna (Gra / Player) */
+.game-column {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    min-width: 0;
+    /* Domyślnie (PC): zajmuje więcej miejsca lub całość */
+    flex: 3; 
+}
+
+/* Prawa kolumna (Czat) */
+.chat-column {
+    flex: 1;
+    min-width: 300px;
+    max-width: 400px;
+    height: 100%;
+}
+
+/* --- WIDOK MOBILNY (Telefony) --- */
+@media (max-width: 768px) {
+    .multiplayer-layout {
+        flex-direction: column; /* Zmiana na pion */
+        padding: 10px;
+        gap: 15px;
+        overflow-y: auto; /* Pozwól na scrollowanie całości jeśli trzeba */
+    }
+
+    .game-column {
+        flex: 0 0 auto; /* Nie rozciągaj się na wysokość, zajmij tyle ile trzeba */
+        width: 100%;
+        order: 1; /* Muzyka pierwsza */
+    }
+
+    .chat-column {
+        flex: 1; /* Zajmij całą resztę dostępnego miejsca na dole */
+        width: 100%;
+        min-width: 0; /* Reset minimalnej szerokości */
+        max-width: none;
+        min-height: 400px; /* Minimalna wysokość czatu na telefonie */
+        order: 2; /* Czat drugi */
+    }
+}

@@ -16,56 +16,79 @@ export default function ChatWindow({
 }: ChatWindowProps) {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
+
   const [hasGuessedTitle, setHasGuessedTitle] = useState(false);
   const [hasGuessedArtist, setHasGuessedArtist] = useState(false);
 
-  // Używamy REFA, żeby mieć zawsze świeży utwór w funkcji sendMessage
+  // REFS
   const currentTrackRef = useRef(currentTrack);
+  const startTimeRef = useRef(roundStartTime);
+
+  const [localStartTime, setLocalStartTime] = useState<number>(Date.now());
   const chatEndRef = useRef<HTMLDivElement>(null);
   const myPlayerId = localStorage.getItem("myPlayerId");
 
+  // Synchronizacja refów
   useEffect(() => {
     currentTrackRef.current = currentTrack;
   }, [currentTrack]);
 
-  // Reset flag po zmianie piosenki
   useEffect(() => {
-    console.log(
-      "[Chat] Nowa runda wykryta -> Reset flag.",
-      currentTrack?.title,
-    );
+    startTimeRef.current = roundStartTime;
+  }, [roundStartTime]);
+
+  // RESET STANU
+  useEffect(() => {
     setHasGuessedTitle(false);
     setHasGuessedArtist(false);
+    setLocalStartTime(Date.now());
   }, [currentTrack?.title, currentTrack?.artist]);
 
   const normalize = (str: string) => {
     if (!str) return "";
     return str
       .toLowerCase()
-      .replace(/[\(\[].*?[\)\]]/g, "") // Usuwa nawiasy
-      .replace(/-.*$/, "") // Usuwa "- Remastered"
+      .replace(/[\(\[].*?[\)\]]/g, "")
+      .replace(/-.*$/, "")
       .replace(/feat\..*$/, "")
       .replace(/ft\..*$/, "")
-      .replace(/[^a-z0-9 ]/g, "") // Usuwa znaki specjalne
+      .replace(/[^a-z0-9 ]/g, "")
       .trim();
   };
 
-  const calculatePoints = () => {
-    if (!roundStartTime) return 10;
+  const calculatePoints = (type: "TITLE" | "ARTIST") => {
     const now = Date.now();
-    const start = new Date(roundStartTime).getTime();
-    const elapsedSec = (now - start) / 1000;
+    let startMs = localStartTime;
+    let method = "LOCAL";
+
+    if (startTimeRef.current) {
+      const serverStart = new Date(startTimeRef.current).getTime();
+      const diffSec = (now - serverStart) / 1000;
+
+      if (diffSec >= 0 && diffSec < 40) {
+        startMs = serverStart;
+        method = "SERVER";
+      } else {
+        method = "LOCAL_FALLBACK";
+      }
+    }
+
+    const elapsedSec = (now - startMs) / 1000;
     const timeLeft = Math.max(0, 30 - elapsedSec);
-    return Math.floor(timeLeft * 3) + 10;
+
+    const basePoints = type === "TITLE" ? 50 : 30;
+    const timeMultiplier = type === "TITLE" ? 5 : 2;
+
+    const points = Math.floor(basePoints + timeLeft * timeMultiplier);
+
+    return Math.max(points, basePoints);
   };
 
   const sendMessage = async (e: any) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
-    const messageId = crypto.randomUUID();
     const messageText = newMessage;
-    setNewMessage("");
 
     let isGuess = false;
     let pointsAwarded = 0;
@@ -78,18 +101,21 @@ export default function ChatWindow({
       const targetTitle = normalize(activeTrack.title);
       const targetArtist = normalize(activeTrack.artist);
 
-      // --- LOGOWANIE DEBUGOWE ---
-      // Otwórz konsolę (F12) i zobacz co tu wyskakuje po wpisaniu tekstu
-      console.log(
-        `[ZGADYWANIE] Ty: "${userGuess}" | Cel Tytuł: "${targetTitle}" | Cel Artysta: "${targetArtist}"`,
-      );
+      // BLOKADA SPOJLERÓW
+      if (
+        (userGuess === targetTitle && hasGuessedTitle) ||
+        (userGuess === targetArtist && hasGuessedArtist)
+      ) {
+        setNewMessage("");
+        return;
+      }
 
-      // 1. TYTUŁ
+      // 1. Zgadnięcie TYTUŁU
       if (userGuess === targetTitle && !hasGuessedTitle) {
-        console.log("-> Zgadnięto tytuł!");
         setHasGuessedTitle(true);
         isGuess = true;
-        pointsAwarded = calculatePoints();
+        pointsAwarded = calculatePoints("TITLE");
+        // W bazie zapisujemy wersję ogólną (bezpieczną)
         systemMsg = `🎶 ${nickname} zgadł TYTUŁ! (+${pointsAwarded} pkt)`;
 
         await supabase.rpc("add_points", {
@@ -98,12 +124,11 @@ export default function ChatWindow({
         });
       }
 
-      // 2. ARTYSTA
+      // 2. Zgadnięcie ARTYSTY
       else if (userGuess === targetArtist && !hasGuessedArtist) {
-        console.log("-> Zgadnięto artystę!");
         setHasGuessedArtist(true);
         isGuess = true;
-        pointsAwarded = Math.floor(calculatePoints() / 2);
+        pointsAwarded = calculatePoints("ARTIST");
         systemMsg = `🎤 ${nickname} zgadł ARTYSTĘ! (+${pointsAwarded} pkt)`;
 
         await supabase.rpc("add_points", {
@@ -111,25 +136,18 @@ export default function ChatWindow({
           points: pointsAwarded,
         });
       }
-    } else {
-      console.warn("[Chat] Brak aktywnego utworu do sprawdzenia.");
     }
 
-    const finalMessageObj = isGuess
-      ? {
-          id: messageId,
-          text: systemMsg,
-          nickname: "SYSTEM",
-          roomId,
-          createdAt: new Date().toISOString(),
-        }
-      : {
-          id: messageId,
-          text: messageText,
-          nickname,
-          roomId,
-          createdAt: new Date().toISOString(),
-        };
+    setNewMessage(""); // Czyścimy input od razu
+
+    const messageId = crypto.randomUUID();
+    const finalMessageObj = {
+      id: messageId,
+      text: isGuess ? systemMsg : messageText,
+      nickname: isGuess ? "SYSTEM" : nickname,
+      roomId: roomId,
+      createdAt: new Date().toISOString(),
+    };
 
     setMessages((prev) => [...prev, finalMessageObj]);
     await supabase.from("Message").insert([finalMessageObj]);
@@ -183,6 +201,7 @@ export default function ChatWindow({
         border: "1px solid rgba(255,255,255,0.2)",
         overflow: "hidden",
         height: "100%",
+        maxHeight: "100%",
       }}
     >
       <div
@@ -198,6 +217,28 @@ export default function ChatWindow({
         {messages.map((msg) => {
           const isSystem = msg.nickname === "SYSTEM";
           const isMe = msg.nickname === nickname;
+
+          // --- LOGIKA WYŚWIETLANIA ODPOWIEDZI ---
+          let displayText = msg.text;
+
+          // Jeśli to wiadomość systemowa O MNIE (zawiera mój nick), to podmieniamy tekst na konkretny
+          if (isSystem && msg.text.includes(nickname) && currentTrack) {
+            // Sprawdzamy czy to o tytule
+            if (msg.text.includes("zgadł TYTUŁ")) {
+              displayText = msg.text.replace(
+                "TYTUŁ",
+                `TYTUŁ: "${currentTrack.title}"`,
+              );
+            }
+            // Sprawdzamy czy to o artyście
+            else if (msg.text.includes("zgadł ARTYSTĘ")) {
+              displayText = msg.text.replace(
+                "ARTYSTĘ",
+                `ARTYSTĘ: "${currentTrack.artist}"`,
+              );
+            }
+          }
+
           return (
             <div
               key={msg.id}
@@ -224,6 +265,7 @@ export default function ChatWindow({
                     fontSize: "0.7rem",
                     color: "#aaa",
                     marginLeft: "5px",
+                    marginRight: "5px",
                   }}
                 >
                   {msg.nickname}
@@ -247,7 +289,8 @@ export default function ChatWindow({
                   textAlign: isSystem ? "center" : "left",
                 }}
               >
-                {msg.text}
+                {/* Używamy przetworzonego tekstu */}
+                {displayText}
               </div>
             </div>
           );
@@ -264,7 +307,7 @@ export default function ChatWindow({
       >
         <input
           type="text"
-          placeholder="Zgadnij utwór..."
+          placeholder="Zgadnij..."
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
           style={{
