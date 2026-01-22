@@ -320,9 +320,6 @@ export default function QuizPlayer({
   if (!isGameStarted) {
     return (
       <div className="flex flex-col items-center gap-4 mt-10 w-full max-w-md mx-auto animate-fade-in p-4">
-        <h2 className="text-white text-3xl uppercase font-bold neon-text">
-          {mode} MODE
-        </h2>
         {isHost ? (
           <div className="flex flex-col gap-3 w-full items-center quiz-card">
             {mode === "playlist" && !initialQuery && (
