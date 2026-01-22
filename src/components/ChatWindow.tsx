@@ -19,22 +19,31 @@ export default function ChatWindow({
   const [hasGuessedTitle, setHasGuessedTitle] = useState(false);
   const [hasGuessedArtist, setHasGuessedArtist] = useState(false);
 
+  // Używamy REFA, żeby mieć zawsze świeży utwór w funkcji sendMessage
+  const currentTrackRef = useRef(currentTrack);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const myPlayerId = localStorage.getItem("myPlayerId");
 
-  // Reset flag zgadywania przy zmianie piosenki
   useEffect(() => {
+    currentTrackRef.current = currentTrack;
+  }, [currentTrack]);
+
+  // Reset flag po zmianie piosenki
+  useEffect(() => {
+    console.log(
+      "[Chat] Nowa runda wykryta -> Reset flag.",
+      currentTrack?.title,
+    );
     setHasGuessedTitle(false);
     setHasGuessedArtist(false);
-  }, [currentTrack?.title]);
+  }, [currentTrack?.title, currentTrack?.artist]);
 
-  // --- ULEPSZONA FUNKCJA CZYSZCZĄCA ---
   const normalize = (str: string) => {
     if (!str) return "";
     return str
       .toLowerCase()
       .replace(/[\(\[].*?[\)\]]/g, "") // Usuwa nawiasy
-      .replace(/-.*$/, "") // Usuwa wszystko po myślniku
+      .replace(/-.*$/, "") // Usuwa "- Remastered"
       .replace(/feat\..*$/, "")
       .replace(/ft\..*$/, "")
       .replace(/[^a-z0-9 ]/g, "") // Usuwa znaki specjalne
@@ -50,104 +59,79 @@ export default function ChatWindow({
     return Math.floor(timeLeft * 3) + 10;
   };
 
-  // --- FUNKCJA DO AKTUALIZACJI PUNKTÓW W BAZIE ---
-  const updateScoreInDb = async (pointsToAdd: number) => {
-    if (!myPlayerId) return;
-
-    // 1. Pobierz aktualny wynik
-    const { data: playerData, error: fetchError } = await supabase
-      .from("Player")
-      .select("score")
-      .eq("id", myPlayerId)
-      .single();
-
-    if (fetchError) {
-      console.error("Błąd pobierania wyniku:", fetchError);
-      return;
-    }
-
-    const currentScore = playerData?.score || 0;
-    const newScore = currentScore + pointsToAdd;
-
-    // 2. Zapisz nowy wynik
-    const { error: updateError } = await supabase
-      .from("Player")
-      .update({ score: newScore })
-      .eq("id", myPlayerId);
-
-    if (updateError) {
-      console.error("Błąd aktualizacji wyniku:", updateError);
-    } else {
-      console.log(`Zaktualizowano wynik: ${currentScore} -> ${newScore}`);
-    }
-  };
-
   const sendMessage = async (e: any) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
     const messageId = crypto.randomUUID();
     const messageText = newMessage;
-    setNewMessage(""); // Czyścimy input od razu
+    setNewMessage("");
 
     let isGuess = false;
     let pointsAwarded = 0;
     let systemMsg = "";
 
-    // --- LOGIKA ZGADYWANIA ---
-    if (currentTrack) {
-      const userGuess = normalize(messageText);
-      const targetTitle = normalize(currentTrack.title);
-      const targetArtist = normalize(currentTrack.artist);
+    const activeTrack = currentTrackRef.current;
 
+    if (activeTrack) {
+      const userGuess = normalize(messageText);
+      const targetTitle = normalize(activeTrack.title);
+      const targetArtist = normalize(activeTrack.artist);
+
+      // --- LOGOWANIE DEBUGOWE ---
+      // Otwórz konsolę (F12) i zobacz co tu wyskakuje po wpisaniu tekstu
       console.log(
-        `[Zgadywanie] Wpisano: "${userGuess}" | Cel: "${targetTitle}" / "${targetArtist}"`
+        `[ZGADYWANIE] Ty: "${userGuess}" | Cel Tytuł: "${targetTitle}" | Cel Artysta: "${targetArtist}"`,
       );
 
-      // 1. Zgadnięcie TYTUŁU
+      // 1. TYTUŁ
       if (userGuess === targetTitle && !hasGuessedTitle) {
+        console.log("-> Zgadnięto tytuł!");
         setHasGuessedTitle(true);
         isGuess = true;
         pointsAwarded = calculatePoints();
         systemMsg = `🎶 ${nickname} zgadł TYTUŁ! (+${pointsAwarded} pkt)`;
 
-        // AKTUALIZACJA PUNKTÓW
-        await updateScoreInDb(pointsAwarded);
+        await supabase.rpc("add_points", {
+          row_id: myPlayerId,
+          points: pointsAwarded,
+        });
       }
 
-      // 2. Zgadnięcie ARTYSTY
+      // 2. ARTYSTA
       else if (userGuess === targetArtist && !hasGuessedArtist) {
+        console.log("-> Zgadnięto artystę!");
         setHasGuessedArtist(true);
         isGuess = true;
         pointsAwarded = Math.floor(calculatePoints() / 2);
         systemMsg = `🎤 ${nickname} zgadł ARTYSTĘ! (+${pointsAwarded} pkt)`;
 
-        // AKTUALIZACJA PUNKTÓW
-        await updateScoreInDb(pointsAwarded);
+        await supabase.rpc("add_points", {
+          row_id: myPlayerId,
+          points: pointsAwarded,
+        });
       }
+    } else {
+      console.warn("[Chat] Brak aktywnego utworu do sprawdzenia.");
     }
 
-    // --- WYSYŁKA WIADOMOŚCI ---
     const finalMessageObj = isGuess
       ? {
           id: messageId,
           text: systemMsg,
           nickname: "SYSTEM",
-          roomId: roomId,
+          roomId,
           createdAt: new Date().toISOString(),
         }
       : {
           id: messageId,
           text: messageText,
-          nickname: nickname,
-          roomId: roomId,
+          nickname,
+          roomId,
           createdAt: new Date().toISOString(),
         };
 
-    // Optimistic Update
     setMessages((prev) => [...prev, finalMessageObj]);
-
-    // Zapis wiadomości do bazy
     await supabase.from("Message").insert([finalMessageObj]);
   };
 
@@ -173,15 +157,13 @@ export default function ChatWindow({
           filter: `roomId=eq.${roomId}`,
         },
         (payload) => {
-          const incomingMsg = payload.new;
           setMessages((prev) => {
-            if (prev.some((msg) => msg.id === incomingMsg.id)) return prev;
-            return [...prev, incomingMsg];
+            if (prev.some((msg) => msg.id === payload.new.id)) return prev;
+            return [...prev, payload.new];
           });
         },
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
     };
@@ -201,7 +183,6 @@ export default function ChatWindow({
         border: "1px solid rgba(255,255,255,0.2)",
         overflow: "hidden",
         height: "100%",
-        maxHeight: "100%",
       }}
     >
       <div
@@ -224,8 +205,8 @@ export default function ChatWindow({
                 alignSelf: isSystem
                   ? "center"
                   : isMe
-                  ? "flex-end"
-                  : "flex-start",
+                    ? "flex-end"
+                    : "flex-start",
                 maxWidth: isSystem ? "100%" : "85%",
                 marginBottom: "5px",
                 display: "flex",
@@ -233,8 +214,8 @@ export default function ChatWindow({
                 alignItems: isSystem
                   ? "center"
                   : isMe
-                  ? "flex-end"
-                  : "flex-start",
+                    ? "flex-end"
+                    : "flex-start",
               }}
             >
               {!isSystem && (
@@ -253,8 +234,8 @@ export default function ChatWindow({
                   background: isSystem
                     ? "rgba(74, 222, 128, 0.2)"
                     : isMe
-                    ? "#4ade80"
-                    : "white",
+                      ? "#4ade80"
+                      : "white",
                   color: isSystem ? "#4ade80" : "black",
                   border: isSystem ? "1px solid #4ade80" : "none",
                   padding: "5px 10px",
@@ -263,7 +244,6 @@ export default function ChatWindow({
                   borderBottomLeftRadius: !isMe && !isSystem ? "0" : "10px",
                   fontSize: isSystem ? "0.85rem" : "0.9rem",
                   fontWeight: isSystem ? "bold" : "normal",
-                  wordBreak: "break-word",
                   textAlign: isSystem ? "center" : "left",
                 }}
               >

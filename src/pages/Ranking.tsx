@@ -7,7 +7,7 @@ import "./Ranking.css";
 // --- TYPY ---
 interface RankEntry {
   nickname: string;
-  totalScore: number;
+  points: number; // Zmieniliśmy totalScore na points, żeby pasowało do bazy
 }
 
 export default function Ranking() {
@@ -15,20 +15,30 @@ export default function Ranking() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // --- POBIERANIE DANYCH ---
+  // --- POBIERANIE DANYCH Z PROFILES ---
   const fetchGlobalRanking = useCallback(async () => {
     setLoading(true);
     setError(null);
     
     try {
+      // ZMIANA: Pobieramy z "Profiles" zamiast "GlobalRanking"
+      // Sortujemy po kolumnie "points" (punkty multiplayer)
       const { data, error: sbError } = await supabase
-        .from("GlobalRanking")
-        .select("nickname, totalScore")
-        .order("totalScore", { ascending: false })
-        .limit(20);
+        .from("Profiles")
+        .select("nickname, points")
+        .order("points", { ascending: false })
+        .limit(5);
 
       if (sbError) throw sbError;
-      if (data) setTopPlayers(data);
+      
+      if (data) {
+        // Mapujemy dane, żeby upewnić się że typy są zgodne (choć tutaj są 1:1)
+        const mappedData = data.map((player: any) => ({
+          nickname: player.nickname,
+          points: player.points || 0
+        }));
+        setTopPlayers(mappedData);
+      }
     } catch (err: any) {
       console.error("Ranking fetch error:", err);
       setError("Failed to load ranking. Try again later.");
@@ -41,7 +51,7 @@ export default function Ranking() {
     fetchGlobalRanking();
   }, [fetchGlobalRanking]);
 
-  // --- ANIMACJE (Warianty) ---
+  // --- WARIANTY ANIMACJI ---
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -64,7 +74,7 @@ export default function Ranking() {
       >
         <header className="ranking-header">
           <h1 className="neon-text">GLOBAL LEGENDS</h1>
-          <p className="subtitle">All-time best scores</p>
+          <p className="subtitle">Top 5 Multiplayer Scores</p>
         </header>
 
         {loading ? (
@@ -107,9 +117,8 @@ export default function Ranking() {
   );
 }
 
-// --- SUBKOMPONENT WIERSZA (Dla czystości JSX) ---
+// --- SUBKOMPONENT WIERSZA ---
 function RankRow({ player, index, variants }: { player: RankEntry, index: number, variants: any }) {
-  // Klasa dla podium
   const getRankClass = (idx: number) => {
     if (idx === 0) return "rank-gold";
     if (idx === 1) return "rank-silver";
@@ -126,7 +135,7 @@ function RankRow({ player, index, variants }: { player: RankEntry, index: number
         <span className="nick-name">{player.nickname}</span>
       </div>
       <div className="rank-score">
-        <span className="points-value">{player.totalScore.toLocaleString()}</span>
+        <span className="points-value">{player.points.toLocaleString()}</span>
         <span className="points-label">PTS</span>
       </div>
     </motion.div>

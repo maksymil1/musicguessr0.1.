@@ -1,18 +1,18 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, memo } from "react";
 import Hls from "hls.js";
 
-interface HlsPlayerProps {
+// Rozszerzamy interfejs o standardowe propsy znacznika audio (np. onPlay, onLoadedData)
+interface HlsPlayerProps extends React.AudioHTMLAttributes<HTMLAudioElement> {
   src: string;
-  playerRef?: React.RefObject<HTMLAudioElement | null>; // Zmieniamy typ na Audio
+  playerRef: React.RefObject<HTMLAudioElement | null>;
 }
 
-export default function HlsPlayer({ src, playerRef }: HlsPlayerProps) {
-  // Jeśli rodzic nie podał refa, używamy wewnętrznego (fallback)
+function HlsPlayer({ src, playerRef, ...props }: HlsPlayerProps) {
   const internalRef = useRef<HTMLAudioElement>(null);
-  const ref = playerRef || internalRef;
+  const audioRef = playerRef || internalRef;
 
   useEffect(() => {
-    const audio = ref.current;
+    const audio = audioRef.current as HTMLAudioElement;
     if (!audio) return;
 
     let hls: Hls | null = null;
@@ -24,24 +24,35 @@ export default function HlsPlayer({ src, playerRef }: HlsPlayerProps) {
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         // Próba autostartu
-        audio.play().catch((e) => console.log("Autoplay blocked:", e));
+        audio.play().catch((e) => console.log("HLS Autoplay blocked:", e));
+      });
+
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.fatal) {
+          console.error("HLS Fatal Error:", data);
+        }
       });
     } else if (audio.canPlayType("application/vnd.apple.mpegurl")) {
-      // Fallback dla Safari (iOS)
+      // Fallback Safari
       audio.src = src;
-      audio.play();
+      audio.addEventListener("loadedmetadata", () => {
+        audio.play().catch((e) => console.log("Safari Autoplay blocked:", e));
+      });
     }
 
     return () => {
       if (hls) hls.destroy();
     };
-  }, [src, ref]);
+  }, [src, audioRef]);
 
   return (
-    // Używamy <audio> zamiast <video>
-    // style={{ display: 'none' }} ukrywa odtwarzacz całkowicie (muzyka gra w tle)
-    // Jeśli chcesz widzieć pasek postępu, usuń display: none i dodaj controls
-    // <audio ref={ref} style={{ display: "none" }} controls={false} />
-    <audio ref={ref} controls={true} autoPlay={true} />
+    <audio
+      ref={audioRef}
+      style={{ display: "none" }}
+      controls={false}
+      {...props} // <--- TO JEST KLUCZOWE: Przekazujemy onPlay i onLoadedData dalej
+    />
   );
 }
+
+export default memo(HlsPlayer);

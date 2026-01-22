@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -7,6 +7,7 @@ import QuizPlayer from "../components/QuizPlayer";
 import GameModes from "./GameModes/GameModes";
 import Genres from "./GameModes/Genres";
 import ChatWindow from "../components/ChatWindow";
+import Settings from "../components/Settings"; // <--- Upewnij się, że ścieżka importu jest poprawna
 
 // Typy i Style
 import type { GameMode, GameTrack } from "../types/types";
@@ -16,9 +17,7 @@ export default function MultiplayerGame() {
   const { roomId } = useParams();
   const navigate = useNavigate();
 
-  if (!roomId) {
-    return <Navigate to="/" replace />;
-  }
+  if (!roomId) return <Navigate to="/" replace />;
 
   const myNickname = localStorage.getItem("myNickname") || "Anon";
   const myPlayerId = localStorage.getItem("myPlayerId");
@@ -44,7 +43,6 @@ export default function MultiplayerGame() {
   const [players, setPlayers] = useState<any[]>([]);
   const [hostStep, setHostStep] = useState<"MODES" | "GENRES">("MODES");
 
-  // --- 1. POBIERANIE GRACZY ---
   const fetchPlayers = useCallback(async () => {
     const { data } = await supabase
       .from("Player")
@@ -60,7 +58,6 @@ export default function MultiplayerGame() {
     }
   }, [roomId]);
 
-  // --- 2. INICJALIZACJA ---
   useEffect(() => {
     if (!roomId) return;
 
@@ -98,7 +95,12 @@ export default function MultiplayerGame() {
       .channel(`multiplayer-game-${roomId}`)
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "Room", filter: `id=eq.${roomId}` },
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "Room",
+          filter: `id=eq.${roomId}`,
+        },
         (payload) => {
           const newData = payload.new;
           setRoomState((prev) => ({
@@ -106,7 +108,7 @@ export default function MultiplayerGame() {
             status: newData.status,
             gameMode: newData.gameMode,
             gameQuery: newData.gameQuery,
-            gameQueue: newData.gameQueue,
+            gameQueue: newData.gameQueue || prev.gameQueue,
             currentRound: newData.currentRound,
             currentSongStart: newData.currentSongStart,
           }));
@@ -114,7 +116,7 @@ export default function MultiplayerGame() {
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "Player", filter: `roomId=eq.${roomId}` },
+        { event: "*", schema: "public", table: "Player", filter: `roomId=eq.${roomId}` },
         () => fetchPlayers(),
       )
       .subscribe();
@@ -124,100 +126,58 @@ export default function MultiplayerGame() {
     };
   }, [roomId, myPlayerId, fetchPlayers]);
 
-  // --- 3. KLUCZOWA FUNKCJA: ZAPISYWANIE PUNKTÓW DO PROFILU ---
-  const saveScoresToProfiles = async () => {
-    console.log("💾 ROZPOCZYNAM ZAPISYWANIE WYNIKÓW...");
+  // Zapisywanie wyników
+  const saveScoresToProfiles = useCallback(async () => {
+    console.log("💾 ZAPISYWANIE WYNIKÓW...");
+    try {
+        const { data: lobbyPlayers } = await supabase.from("Player").select("nickname, score").eq("roomId", roomId);
+        if (!lobbyPlayers || lobbyPlayers.length === 0) return;
 
-    // A. Pobierz wyniki z Lobby
-    const { data: lobbyPlayers } = await supabase
-      .from("Player")
-      .select("nickname, score")
-      .eq("roomId", roomId);
+        const nicknames = lobbyPlayers.map((p) => p.nickname);
+        const { data: profiles } = await supabase.from("Profiles").select("id, nickname, points, games_played").in("nickname", nicknames);
 
-    if (!lobbyPlayers || lobbyPlayers.length === 0) return;
+        if (profiles && profiles.length > 0) {
+        for (const lobbyPlayer of lobbyPlayers) {
+            if (!lobbyPlayer.score || lobbyPlayer.score <= 0) continue;
+            const profile = profiles.find((p) => p.nickname === lobbyPlayer.nickname);
 
-    // B. Znajdź Profile pasujące do Nicków
-    const nicknames = lobbyPlayers.map((p) => p.nickname);
-    const { data: profiles } = await supabase
-      .from("Profiles")
-      .select("id, nickname, points, games_played")
-      .in("nickname", nicknames);
+            if (profile) {
+            const newTotalPoints = (profile.points || 0) + lobbyPlayer.score;
+            const newGamesPlayed = (profile.games_played || 0) + 1;
 
-    // C. Aktualizuj każdy znaleziony profil
-    if (profiles && profiles.length > 0) {
-      for (const lobbyPlayer of lobbyPlayers) {
-        // Ignoruj jeśli ktoś ma 0 punktów (opcjonalnie)
-        if (!lobbyPlayer.score || lobbyPlayer.score <= 0) continue;
-
-        const profile = profiles.find((p) => p.nickname === lobbyPlayer.nickname);
-
-        if (profile) {
-          const newTotalPoints = (profile.points || 0) + lobbyPlayer.score;
-          const newGamesPlayed = (profile.games_played || 0) + 1;
-
-          console.log(`🆙 Aktualizuję ${lobbyPlayer.nickname}: +${lobbyPlayer.score} pkt`);
-
-          // 1. Zapisz do Profiles
-          await supabase
-            .from("Profiles")
-            .update({
-              points: newTotalPoints,
-              games_played: newGamesPlayed,
-            })
-            .eq("id", profile.id);
-
-          // 2. Zapisz do GlobalRanking (dla pewności)
-          const { data: rankData } = await supabase
-             .from("GlobalRanking")
-             .select("totalScore")
-             .eq("nickname", lobbyPlayer.nickname)
-             .maybeSingle();
-          
-          const currentRankScore = rankData ? rankData.totalScore : 0;
-          
-          await supabase.from("GlobalRanking").upsert({
-            nickname: lobbyPlayer.nickname,
-            totalScore: currentRankScore + lobbyPlayer.score,
-            updatedAt: new Date().toISOString()
-          }, { onConflict: "nickname" });
+            await supabase.from("Profiles").update({ points: newTotalPoints, games_played: newGamesPlayed }).eq("id", profile.id);
+            
+            try {
+                const { data: rankData } = await supabase.from("GlobalRanking").select("totalScore").eq("nickname", lobbyPlayer.nickname).maybeSingle();
+                const currentRankScore = rankData ? rankData.totalScore : 0;
+                
+                await supabase.from("GlobalRanking").upsert({
+                    nickname: lobbyPlayer.nickname,
+                    totalScore: currentRankScore + lobbyPlayer.score,
+                    updatedAt: new Date().toISOString()
+                }, { onConflict: "nickname" });
+            } catch (innerErr) {
+                console.warn(`Nie udało się zaktualizować rankingu globalnego dla ${lobbyPlayer.nickname}:`, innerErr);
+            }
+            }
         }
-      }
-    } else {
-        console.log("⚠️ Nie znaleziono profili dla graczy (może grają jako goście?)");
+        }
+    } catch (err) {
+        console.error("Błąd podczas zapisywania wyników:", err);
     }
-  };
+  }, [roomId]);
 
-  // --- 4. OBSŁUGA KOŃCA GRY ---
-  const handleGameFinish = async () => {
-    // Ustawiamy stan lokalnie, żeby UI zareagowało natychmiast
+  const handleGameFinish = useCallback(async () => {
     setRoomState((prev) => ({ ...prev, status: "FINISHED" }));
-
-    // Tylko HOST wykonuje operacje na bazie
     if (isHost) {
-      // 1. Najpierw zapisz punkty graczy do ich profili
       await saveScoresToProfiles();
-
-      // 2. Potem oznacz pokój jako zakończony
-      await supabase
-        .from("Room")
-        .update({ status: "FINISHED" })
-        .eq("id", roomId);
+      await supabase.from("Room").update({ status: "FINISHED" }).eq("id", roomId);
     }
-  };
+  }, [isHost, roomId, saveScoresToProfiles]);
 
-  // --- RESETOWANIE ---
   const handleRestartGame = async () => {
     await supabase.from("Player").update({ score: 0 }).eq("roomId", roomId);
-    await supabase
-      .from("Room")
-      .update({
-        status: "WAITING",
-        gameMode: null,
-        gameQueue: null,
-        currentRound: 0,
-        currentSongStart: null,
-      })
-      .eq("id", roomId);
+    await supabase.from("Room").update({ status: "WAITING", gameMode: null, gameQueue: null, currentRound: 0, currentSongStart: null }).eq("id", roomId);
     setHostStep("MODES");
     setPlayers((prev) => prev.map((p) => ({ ...p, score: 0 })));
   };
@@ -227,7 +187,6 @@ export default function MultiplayerGame() {
     navigate("/");
   };
 
-  // --- HOST CONTROLS ---
   const handleHostSelectMode = (mode: GameMode) => {
     if (mode === "genre") setHostStep("GENRES");
     else updateRoomSetup(mode, "");
@@ -244,56 +203,36 @@ export default function MultiplayerGame() {
       gameQuery: query,
       status: prev.status === "FINISHED" ? "WAITING" : prev.status,
     }));
-    await supabase
-      .from("Room")
-      .update({ gameMode: mode, gameQuery: query })
-      .eq("id", roomId);
+    await supabase.from("Room").update({ gameMode: mode, gameQuery: query }).eq("id", roomId);
   };
 
-  const handleLocalStateUpdate = (updates: Partial<typeof roomState>) => {
+  const handleLocalStateUpdate = useCallback((updates: Partial<typeof roomState>) => {
     setRoomState((prev) => ({ ...prev, ...updates }));
-  };
+  }, []);
 
-  // --- RENDEROWANIE UI ---
   const isGameActive = !!roomState.gameMode && roomState.status !== "FINISHED";
 
   const currentTrack =
     roomState.gameQueue && roomState.gameQueue[roomState.currentRound]
-      ? {
-          title: roomState.gameQueue[roomState.currentRound].title,
-          artist: roomState.gameQueue[roomState.currentRound].artist,
-        }
+      ? { title: roomState.gameQueue[roomState.currentRound].title, artist: roomState.gameQueue[roomState.currentRound].artist }
       : null;
 
   const renderLeftColumn = () => {
     if (roomState.status === "FINISHED") {
       return (
         <div className="flex flex-col items-center justify-center w-full h-full text-white animate-fade-in">
-          <h1 className="text-5xl font-bold text-yellow-400 mb-8 neon-text">
-            GAME OVER
-          </h1>
+          <h1 className="text-5xl font-bold text-yellow-400 mb-8 neon-text">GAME OVER</h1>
           <div className="bg-gray-900/80 p-6 rounded-xl w-full max-w-lg border border-gray-700 shadow-2xl mb-8 overflow-y-auto max-h-[400px]">
-            <h3 className="text-xl font-bold mb-4 border-b border-gray-700 pb-2 text-center">
-              RANKING (SAVED TO PROFILE)
-            </h3>
+            <h3 className="text-xl font-bold mb-4 border-b border-gray-700 pb-2 text-center">RANKING (SAVED)</h3>
             {players.length > 0 ? (
               players.map((p, index) => (
-                <div
-                  key={p.id}
-                  className="flex justify-between items-center p-3 border-b border-gray-800 last:border-0 hover:bg-white/5 transition-colors"
-                >
+                <div key={p.id} className="flex justify-between items-center p-3 border-b border-gray-800 last:border-0 hover:bg-white/5 transition-colors">
                   <div className="flex items-center gap-3">
-                    <span
-                      className={`font-bold text-xl w-8 ${index === 0 ? "text-yellow-400" : "text-gray-300"}`}
-                    >
-                      #{index + 1}
-                    </span>
+                    <span className={`font-bold text-xl w-8 ${index === 0 ? "text-yellow-400" : "text-gray-300"}`}>#{index + 1}</span>
                     <span className="text-lg">{p.nickname}</span>
                     {p.isHost && <span>👑</span>}
                   </div>
-                  <span className="text-green-400 font-mono text-xl font-bold">
-                    {p.score || 0} pkt
-                  </span>
+                  <span className="text-green-400 font-mono text-xl font-bold">{p.score || 0} pkt</span>
                 </div>
               ))
             ) : (
@@ -302,18 +241,8 @@ export default function MultiplayerGame() {
           </div>
           {isHost ? (
             <div className="flex gap-4">
-              <button
-                onClick={handleRestartGame}
-                className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition active:scale-95"
-              >
-                RESTART 🔄
-              </button>
-              <button
-                onClick={handleCloseRoom}
-                className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition active:scale-95"
-              >
-                CLOSE ❌
-              </button>
+              <button onClick={handleRestartGame} className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition active:scale-95">RESTART 🔄</button>
+              <button onClick={handleCloseRoom} className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition active:scale-95">CLOSE ❌</button>
             </div>
           ) : (
             <p className="text-gray-400 animate-pulse">Czekanie na Hosta...</p>
@@ -329,8 +258,9 @@ export default function MultiplayerGame() {
           roomId={roomId!}
           isHost={isHost}
           initialQuery={roomState.gameQuery || undefined}
-          onGameFinish={handleGameFinish} // Przekazujemy funkcję kończącą
+          onGameFinish={handleGameFinish}
           onGameStateChange={handleLocalStateUpdate}
+          // Usunięto prop volume - teraz QuizPlayer bierze go z Contextu
         />
       );
     }
@@ -338,12 +268,7 @@ export default function MultiplayerGame() {
     if (isHost) {
       return hostStep === "GENRES" ? (
         <div className="w-full flex flex-col items-center">
-          <button
-            onClick={() => setHostStep("MODES")}
-            className="self-start mb-4 text-gray-400 hover:text-white underline"
-          >
-            ← Wróć
-          </button>
+          <button onClick={() => setHostStep("MODES")} className="self-start mb-4 text-gray-400 hover:text-white underline">← Wróć</button>
           <Genres onGenreSelect={handleHostSelectGenre} />
         </div>
       ) : (
@@ -360,7 +285,11 @@ export default function MultiplayerGame() {
   };
 
   return (
-    <div className="master" style={{ height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+    <div className="master" style={{ height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column", position: 'relative' }}>
+      
+      {/* Dodano komponent Settings, który kontroluje globalny Context */}
+      <Settings />
+
       <div style={{
           display: "flex", width: "100%", maxWidth: isGameActive || roomState.status === "FINISHED" ? "1400px" : "800px",
           margin: "0 auto", height: "100%", padding: "20px", gap: "20px",
@@ -373,7 +302,12 @@ export default function MultiplayerGame() {
         </div>
         {(isGameActive || roomState.status === "FINISHED") && (
           <div style={{ flex: 1, minWidth: "300px", maxWidth: "400px", height: "100%" }}>
-            <ChatWindow roomId={roomId} nickname={myNickname} currentTrack={currentTrack} roundStartTime={roomState.currentSongStart} />
+            <ChatWindow 
+              roomId={roomId!} 
+              nickname={myNickname} 
+              currentTrack={currentTrack} 
+              roundStartTime={roomState.currentSongStart} 
+            />
           </div>
         )}
       </div>

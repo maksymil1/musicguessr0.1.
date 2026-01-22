@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import HlsPlayer from "./HlsPlayer";
+import { useVolume } from "../context/VolumeContext"; // <--- IMPORT CONTEXTU
 import type { GameTrack, GameMode } from "../types/types";
 
 interface QuizPlayerProps {
@@ -10,6 +11,7 @@ interface QuizPlayerProps {
   initialQuery?: string;
   onGameFinish: () => void;
   onGameStateChange?: (updates: any) => void;
+  // volume prop usunięty - bierzemy go z Contextu
 }
 
 export default function QuizPlayer({
@@ -25,6 +27,25 @@ export default function QuizPlayer({
   const roundRef = useRef(0);
   const isHostRef = useRef(isHost);
 
+  // --- PODPIĘCIE POD GLOBALNY CONTEXT ---
+  const { volume, isMuted } = useVolume();
+  
+  // Ref do głośności, aby w event listenerach (onPlay) mieć zawsze świeżą wartość bez restartu
+  const volumeSettingsRef = useRef({ volume, isMuted });
+
+  useEffect(() => {
+    volumeSettingsRef.current = { volume, isMuted };
+  }, [volume, isMuted]);
+
+  // Refy dla callbacków
+  const onGameFinishRef = useRef(onGameFinish);
+  const onGameStateChangeRef = useRef(onGameStateChange);
+
+  useEffect(() => {
+    onGameFinishRef.current = onGameFinish;
+    onGameStateChangeRef.current = onGameStateChange;
+  }, [onGameFinish, onGameStateChange]);
+
   const [inputValue, setInputValue] = useState("");
   const [gameQueue, setGameQueue] = useState<GameTrack[] | null>(null);
   const [currentRound, setCurrentRound] = useState(0);
@@ -33,18 +54,78 @@ export default function QuizPlayer({
   const [status, setStatus] = useState("");
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentSongStartTime, setCurrentSongStartTime] = useState<string | null>(null);
 
-  useEffect(() => {
-    queueRef.current = gameQueue;
-  }, [gameQueue]);
-  useEffect(() => {
-    roundRef.current = currentRound;
-  }, [currentRound]);
-  useEffect(() => {
-    isHostRef.current = isHost;
-  }, [isHost]);
+  // --- FUNKCJA APLIKUJĄCA GŁOŚNOŚĆ ---
+  const enforceVolume = useCallback(() => {
+    if (playerRef.current) {
+      const { volume: vol, isMuted: muted } = volumeSettingsRef.current;
+      
+      if (muted) {
+        playerRef.current.volume = 0;
+      } else {
+        // Skalowanie logarytmiczne dla bardziej naturalnego odczucia (x^2)
+        const normalized = vol / 100;
+        const safeVolume = Math.min(Math.max(normalized, 0), 1);
+        playerRef.current.volume = Math.pow(safeVolume, 2);
+      }
+    }
+  }, []);
 
-  // Cleanup audio
+  // Reakcja na zmianę suwaka lub mute w czasie rzeczywistym
+  useEffect(() => {
+    enforceVolume();
+  }, [volume, isMuted, enforceVolume]);
+
+  // --- AUTOMATYCZNY START ODTWARZANIA ---
+  useEffect(() => {
+    if (!streamUrl || !playerRef.current) return;
+
+    let isCancelled = false;
+    
+    const playAudio = async () => {
+      try {
+        const player = playerRef.current;
+        if (!player) return;
+
+        // 1. Ustaw głośność PRZED startem
+        enforceVolume();
+
+        // 2. Synchronizacja czasu
+        if (currentSongStartTime) {
+          const startTimeMs = new Date(currentSongStartTime).getTime();
+          const nowMs = Date.now();
+          const diffSec = (nowMs - startTimeMs) / 1000;
+          
+          if (diffSec > 0 && diffSec < 29) {
+            player.currentTime = diffSec;
+          }
+        }
+
+        // 3. Próba odtworzenia
+        if (!isCancelled) {
+          await player.play();
+        }
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          console.warn("Autoplay blocked/failed:", err);
+        }
+      }
+    };
+
+    const timeoutId = setTimeout(playAudio, 150);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [streamUrl, currentSongStartTime, enforceVolume]);
+
+  useEffect(() => { queueRef.current = gameQueue; }, [gameQueue]);
+  useEffect(() => { roundRef.current = currentRound; }, [currentRound]);
+  useEffect(() => { isHostRef.current = isHost; }, [isHost]);
+
+  // Cleanup
   useEffect(() => {
     return () => {
       if (playerRef.current) {
@@ -54,7 +135,7 @@ export default function QuizPlayer({
     };
   }, []);
 
-  // --- 1. START GRY (HOST) ---
+  // --- LOGIKA GRY (BEZ ZMIAN) ---
   const handleStartGame = async () => {
     if (!isHost) return;
     if (!inputValue && mode !== "genre" && !initialQuery) return;
@@ -92,9 +173,8 @@ export default function QuizPlayer({
       setIsGameStarted(true);
       setStatus("Gra wystartowała!");
 
-      // Update rodzica (Host Start)
-      if (onGameStateChange) {
-        onGameStateChange({
+      if (onGameStateChangeRef.current) {
+        onGameStateChangeRef.current({
           gameQueue: tracks,
           currentRound: 0,
           status: "PLAYING",
@@ -111,28 +191,25 @@ export default function QuizPlayer({
     }
   };
 
-  // --- 2. SUBSKRYPCJA I SYNC (GOŚCIE + REFRESH) ---
   useEffect(() => {
     if (!roomId) return;
     if (!isHost) setStatus("Czekanie na Hosta...");
 
-    // A. Pobierz stan początkowy (dla wchodzących w trakcie)
     const fetchInitialState = async () => {
       const { data } = await supabase
         .from("Room")
         .select("*")
         .eq("id", roomId)
         .single();
+      
       if (data?.status === "PLAYING" && data.gameQueue) {
         setGameQueue(data.gameQueue);
         setCurrentRound(data.currentRound);
         setIsGameStarted(true);
         setStatus("Dołączono do gry.");
 
-        // !!! POPRAWKA: Informujemy rodzica o stanie gry przy wejściu !!!
-        if (onGameStateChange) {
-          console.log("[QuizPlayer] Initial Sync -> Update Parent");
-          onGameStateChange({
+        if (onGameStateChangeRef.current) {
+          onGameStateChangeRef.current({
             gameQueue: data.gameQueue,
             currentRound: data.currentRound,
             status: "PLAYING",
@@ -148,7 +225,6 @@ export default function QuizPlayer({
     };
     fetchInitialState();
 
-    // B. Realtime Updates
     const channel = supabase
       .channel(`quiz-player-${roomId}`)
       .on(
@@ -164,48 +240,33 @@ export default function QuizPlayer({
           const currentQ = queueRef.current;
           const currentR = roundRef.current;
 
-          // Wykrycie startu gry (Gość)
           if (newData.status === "PLAYING" && newData.gameQueue && !currentQ) {
             setGameQueue(newData.gameQueue);
             setIsGameStarted(true);
             setCurrentRound(0);
             setStatus("Gra wystartowała!");
-
-            // !!! POPRAWKA: Informujemy rodzica przy starcie z Realtime !!!
-            if (onGameStateChange) {
-              onGameStateChange({
+            if (onGameStateChangeRef.current) {
+              onGameStateChangeRef.current({
                 gameQueue: newData.gameQueue,
                 currentRound: 0,
                 status: "PLAYING",
                 currentSongStart: newData.currentSongStart,
               });
             }
-
             if (newData.currentSongStart && newData.gameQueue[0]) {
-              resolveAndPlayStream(
-                newData.gameQueue[0].urn,
-                newData.currentSongStart,
-              );
+              resolveAndPlayStream(newData.gameQueue[0].urn, newData.currentSongStart);
             }
             return;
           }
 
-          // Zmiana rundy
-          if (
-            newData.currentRound !== undefined &&
-            currentQ &&
-            newData.currentRound !== currentR
-          ) {
+          if (newData.currentRound !== undefined && currentQ && newData.currentRound !== currentR) {
             setCurrentRound(newData.currentRound);
-
-            // !!! POPRAWKA: Informujemy rodzica o zmianie rundy (Gość) !!!
-            if (onGameStateChange) {
-              onGameStateChange({
+            if (onGameStateChangeRef.current) {
+              onGameStateChangeRef.current({
                 currentRound: newData.currentRound,
                 currentSongStart: newData.currentSongStart,
               });
             }
-
             const track = currentQ[newData.currentRound];
             if (track && newData.currentSongStart) {
               resolveAndPlayStream(track.urn, newData.currentSongStart);
@@ -215,7 +276,7 @@ export default function QuizPlayer({
           if (newData.status === "FINISHED") {
             setStatus("KONIEC GRY");
             setStreamUrl(null);
-            onGameFinish();
+            if (onGameFinishRef.current) onGameFinishRef.current();
           }
         },
       )
@@ -224,15 +285,14 @@ export default function QuizPlayer({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [roomId, onGameFinish]); // Ważne: onGameStateChange nie musi być w dependency jeśli jest stabilne
+  }, [roomId]); 
 
-  // --- 3. LOGIKA AUDIO ---
-  const resolveAndPlayStream = async (
-    urn: string,
-    serverStartTime?: string,
-  ) => {
-    setStreamUrl(null);
+  const resolveAndPlayStream = async (urn: string, serverStartTime?: string) => {
+    if (playerRef.current) playerRef.current.pause();
+
+    setStreamUrl(null); 
     setStatus("Ładowanie...");
+    setCurrentSongStartTime(serverStartTime || null);
 
     try {
       let finalUrl = "";
@@ -251,23 +311,6 @@ export default function QuizPlayer({
       if (finalUrl) {
         setStreamUrl(finalUrl);
         setStatus(`Runda ${(roundRef.current || 0) + 1}`);
-        setTimeout(() => {
-          if (serverStartTime && playerRef.current) {
-            const startTimeMs = new Date(serverStartTime).getTime();
-            const nowMs = Date.now();
-            const diffSec = (nowMs - startTimeMs) / 1000;
-            if (diffSec > 0 && diffSec < 29) {
-              playerRef.current.currentTime = diffSec;
-              playerRef.current
-                .play()
-                .catch((e) => console.log("Autoplay blocked:", e));
-            } else {
-              playerRef.current
-                .play()
-                .catch((e) => console.log("Autoplay blocked:", e));
-            }
-          }
-        }, 200);
       }
     } catch (e) {
       console.error("Błąd audio:", e);
@@ -275,39 +318,25 @@ export default function QuizPlayer({
     }
   };
 
-  // --- 4. STEROWANIE ---
   const handleNextRound = async () => {
     if (!isHostRef.current || !queueRef.current) return;
     const currentR = roundRef.current;
     const queue = queueRef.current;
 
     if (currentR + 1 >= queue.length) {
-      await supabase
-        .from("Room")
-        .update({ status: "FINISHED" })
-        .eq("id", roomId);
-      onGameFinish();
+      await supabase.from("Room").update({ status: "FINISHED" }).eq("id", roomId);
+      if (onGameFinishRef.current) onGameFinishRef.current();
       return;
     }
 
     const nextRound = currentR + 1;
     const now = new Date().toISOString();
-
-    await supabase
-      .from("Room")
-      .update({ currentRound: nextRound, currentSongStart: now })
-      .eq("id", roomId);
-
+    await supabase.from("Room").update({ currentRound: nextRound, currentSongStart: now }).eq("id", roomId);
     setCurrentRound(nextRound);
-
-    // Update rodzica (Host Next Round)
-    if (onGameStateChange) {
-      onGameStateChange({
-        currentRound: nextRound,
-        currentSongStart: now,
-      });
+    
+    if (onGameStateChangeRef.current) {
+      onGameStateChangeRef.current({ currentRound: nextRound, currentSongStart: now });
     }
-
     resolveAndPlayStream(queue[nextRound].urn, now);
   };
 
@@ -351,9 +380,7 @@ export default function QuizPlayer({
         ) : (
           <div className="text-white animate-pulse text-center">
             <p className="text-xl font-bold">OCZEKIWANIE NA HOSTA</p>
-            <p className="text-sm text-gray-400 mt-2">
-              Host konfiguruje rozgrywkę...
-            </p>
+            <p className="text-sm text-gray-400 mt-2">Host konfiguruje rozgrywkę...</p>
           </div>
         )}
       </div>
@@ -363,9 +390,7 @@ export default function QuizPlayer({
   return (
     <div className="flex flex-col items-center gap-6 w-full max-w-2xl mx-auto p-4">
       <div className="flex justify-between w-full text-white font-bold text-lg border-b border-gray-700 pb-2">
-        <span>
-          Runda {currentRound + 1} / {gameQueue?.length}
-        </span>
+        <span>Runda {currentRound + 1} / {gameQueue?.length}</span>
         <span className="text-green-400">{status}</span>
       </div>
 
@@ -377,11 +402,18 @@ export default function QuizPlayer({
                 ref={playerRef}
                 src={streamUrl}
                 controls={false}
-                autoPlay
+                // WAŻNE: onPlay i onLoadedData wymuszają aktualną głośność
+                onPlay={enforceVolume}
+                onLoadedData={enforceVolume}
                 onEnded={onAudioEnded}
               />
             ) : (
-              <HlsPlayer src={streamUrl} playerRef={playerRef} />
+              <HlsPlayer 
+                src={streamUrl} 
+                playerRef={playerRef}
+                onPlay={enforceVolume} 
+                onLoadedData={enforceVolume} 
+              />
             )}
             <div className="flex items-center gap-3">
               <div className="flex gap-1 h-8 items-end">
@@ -389,18 +421,15 @@ export default function QuizPlayer({
                 <div className="w-1 bg-green-500 animate-[bounce_1.2s_infinite] h-6"></div>
                 <div className="w-1 bg-green-500 animate-[bounce_0.8s_infinite] h-3"></div>
               </div>
-              <span className="text-white font-bold tracking-widest text-xl">
-                ON AIR
-              </span>
+              <span className="text-white font-bold tracking-widest text-xl">ON AIR</span>
             </div>
             {isHost && gameQueue && gameQueue[currentRound] && (
               <div className="mt-6 p-3 bg-black/50 border border-yellow-500/50 rounded-lg text-center animate-fade-in">
                 <p className="text-xs text-yellow-500/80 font-mono mb-1 uppercase tracking-widest">
-                  👁️ Host Preview (Tylko Ty to widzisz)
+                  👁️ Host Preview
                 </p>
                 <p className="text-yellow-300 font-bold text-lg">
-                  {gameQueue[currentRound].artist} -{" "}
-                  {gameQueue[currentRound].title}
+                  {gameQueue[currentRound].artist} - {gameQueue[currentRound].title}
                 </p>
               </div>
             )}
