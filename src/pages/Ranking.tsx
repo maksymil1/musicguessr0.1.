@@ -10,7 +10,8 @@ interface RankEntry {
   points: number;
   avatar_url?: string;
   guessed_percentage: number;
-  games_played: number;
+  games_played: number;       // Solo Games
+  multi_games_played: number; // Multi Games
 }
 
 export default function Ranking() {
@@ -22,12 +23,12 @@ export default function Ranking() {
     try {
       const { data, error } = await supabase
         .from("Profiles")
-        .select("id, nickname, points, avatar_url, guessed_percentage, games_played")
+        .select("id, nickname, points, avatar_url, guessed_percentage, games_played, multi_games_played")
         .order("points", { ascending: false })
         .limit(5);
 
       if (error) throw error;
-      if (data) setTopPlayers(data);
+      if (data) setTopPlayers(data as RankEntry[]);
     } catch (err) {
       console.error("Ranking fetch error:", err);
     } finally {
@@ -47,15 +48,13 @@ export default function Ranking() {
         className="ranking-glass-box-large"
       >
         <header className="ranking-header-new">
-          <h1 className="neon-text">GLOBAL LEGENDS</h1>
+          <h1 className="neon-text">RANKING</h1>
           <p className="subtitle">TOP 5 PLAYERS</p>
         </header>
 
         <div className="ranking-content-fill">
           {loading ? (
-            <div className="loading-state">
-              <div className="spinner"></div>
-            </div>
+            <div className="loading-state"><div className="spinner"></div></div>
           ) : (
             <AnimatePresence mode="popLayout">
               {topPlayers.map((player, index) => (
@@ -103,15 +102,31 @@ function RankRow({ player, index }: { player: RankEntry; index: number }) {
             {player.nickname}
           </div>
           <div className="player-stats-row">
-            <span>🎯 <span className="stat-val">{player.guessed_percentage}%</span></span>
-            <span>🎮 <span className="stat-val">{player.games_played}</span></span>
+             {/* Statystyki SOLO - Procent i liczba gier w nawiasie */}
+            <span>🎯 <span className="stat-val">{player.guessed_percentage}% ({player.games_played})</span></span>
           </div>
         </div>
       </div>
 
-      <div style={{ textAlign: 'right', minWidth: '100px' }}>
-        <div className="points-value">{player.points.toLocaleString()}</div>
-        <div className="points-label">TOTAL PTS</div>
+      {/* Prawa strona - wyrównana do prawej krawędzi */}
+      <div style={{ 
+        textAlign: 'right', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: 'flex-end',
+        minWidth: '140px' 
+      }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+          {/* Liczba gier multi w nawiasie - kolor żółty dla wyróżnienia */}
+          <span style={{ color: '#4ade80', fontWeight: 'bold', fontSize: '1.1rem' }}>
+            ({player.multi_games_played})
+          </span>
+          {/* Punkty - kolor z Twojego CSS (.points-value) */}
+          <span className="points-value">
+            {player.points.toLocaleString()}
+          </span>
+        </div>
+        <div className="points-label">(GAMES) MULTI PTS</div>
       </div>
     </motion.div>
   );

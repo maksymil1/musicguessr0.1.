@@ -13,17 +13,16 @@ datasource db {
 // --- MODELE APLIKACJI (PUBLIC) ---
 
 model Profile {
-  id                 String         @id @db.Uuid // Powiązane z auth.users.id
-  email              String         @unique
-  nickname           String         @unique
-  games_played       Int            @default(0)
-  points             Int            @default(0) // Punkty z MULTIPLAYER
-  guessed_percentage Int            @default(0) // Skuteczność z SINGLEPLAYER
-  createdAt          DateTime       @default(now())
-  ranking            GlobalRanking?
-
+  id                 String   @id @db.Uuid
+  nickname           String   @unique
+  // KOSZYK SOLO
+  games_played       Int      @default(0) 
+  guessed_percentage Int      @default(0) 
+  // KOSZYK MULTI
+  points             Int      @default(0) 
+  multi_games_played Int      @default(0) // Musisz to dodać tutaj
+  
   @@map("Profiles")
-  @@schema("public")
 }
 
 model Room {

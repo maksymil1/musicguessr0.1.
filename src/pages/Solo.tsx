@@ -314,7 +314,7 @@ export default function Solo() {
           </div>
         )}
         
-        <div style={{ paddingTop: "20px", alignSelf: "center" }}><MenuButton label="EXIT" to="/" external={false} /></div>
+        <div style={{ paddingTop: "20px", alignSelf: "center" }}><MenuButton label="BACK TO MENU" to="/" external={false} /></div>
       </div>
 
       <style>{`

@@ -5,14 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import "./Friends.css";
 
-// --- INTERFEJSY ---
+// --- INTERFACES ---
 interface FriendRequest {
   id: string;
   senderNick: string;
   receiverNick: string;
   status: "PENDING" | "ACCEPTED";
   createdAt: string;
-  avatarUrl?: string; // <--- NOWE POLE
+  avatarUrl?: string;
   friendStats?: {
     guessed_percentage: number;
     games_played: number;
@@ -31,20 +31,20 @@ export default function Friends() {
   const [tab, setTab] = useState<"list" | "requests">("list");
   const [loading, setLoading] = useState(true);
 
-  // --- LOGIKA POBIERANIA DANYCH ---
+  // --- DATA FETCHING LOGIC ---
   const fetchData = useCallback(async () => {
     if (!myNickname) return;
     setLoading(true);
 
     try {
-      // 1. POBIERZ ZNAJOMYCH
+      // 1. FETCH FRIENDS
       const { data: friendsData, error: friendsError } = await supabase
         .from("FriendRequest")
         .select("*")
         .or(`senderNick.eq."${myNickname}",receiverNick.eq."${myNickname}"`)
         .eq("status", "ACCEPTED");
 
-      // 2. POBIERZ ZAPROSZENIA
+      // 2. FETCH PENDING REQUESTS
       const { data: requestsData, error: requestsError } = await supabase
         .from("FriendRequest")
         .select("*")
@@ -54,7 +54,7 @@ export default function Friends() {
       if (friendsError) console.error("Error fetching friends:", friendsError);
       if (requestsError) console.error("Error fetching requests:", requestsError);
 
-      // --- 3. DOCIĄGNIJ STATYSTYKI I AWATARY ---
+      // --- 3. FETCH STATISTICS AND AVATARS ---
       let enrichedFriends: FriendRequest[] = friendsData || [];
 
       if (friendsData && friendsData.length > 0) {
@@ -62,7 +62,7 @@ export default function Friends() {
           f.senderNick === myNickname ? f.receiverNick : f.senderNick
         );
 
-        // ZMIANA: Dodano 'avatar_url' do zapytania
+        // Retrieve 'avatar_url' and stats from Profiles
         const { data: profilesData } = await supabase
           .from("Profiles")
           .select("nickname, guessed_percentage, games_played, points, avatar_url")
@@ -74,7 +74,7 @@ export default function Friends() {
           
           return {
             ...f,
-            avatarUrl: profile?.avatar_url, // Przypisujemy avatar
+            avatarUrl: profile?.avatar_url,
             friendStats: profile ? {
               guessed_percentage: profile.guessed_percentage || 0,
               games_played: profile.games_played || 0,
@@ -94,13 +94,19 @@ export default function Friends() {
     }
   }, [myNickname]);
 
-  // --- WYSYŁANIE ZAPROSZENIA ---
+  // --- SENDING INVITATION ---
   const sendInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     const target = searchNick.trim();
 
-    if (!myNickname) { alert("Musisz być zalogowany!"); return; }
-    if (!target || target === myNickname) { alert("Nieprawidłowy nick."); return; }
+    if (!myNickname) { 
+        alert("You must be logged in!"); 
+        return; 
+    }
+    if (!target || target === myNickname) { 
+        alert("Invalid nickname."); 
+        return; 
+    }
 
     const { data: userExists, error: searchError } = await supabase
       .from("Profiles")
@@ -108,7 +114,10 @@ export default function Friends() {
       .eq("nickname", target)
       .maybeSingle();
 
-    if (searchError || !userExists) { alert("Taki gracz nie istnieje."); return; }
+    if (searchError || !userExists) { 
+        alert("This player does not exist."); 
+        return; 
+    }
 
     const { data: existing } = await supabase
       .from("FriendRequest")
@@ -121,15 +130,18 @@ export default function Friends() {
       (req.senderNick === target && req.receiverNick === myNickname)
     );
 
-    if (isAlreadyLinked) { alert("Już jesteście znajomymi lub zaproszenie w toku."); return; }
+    if (isAlreadyLinked) { 
+        alert("You are already friends or an invitation is pending."); 
+        return; 
+    }
 
     const { error: insertError } = await supabase.from("FriendRequest").insert([{ 
       senderNick: myNickname, receiverNick: target, status: "PENDING"
     }]);
 
-    if (insertError) alert("Błąd bazy: " + insertError.message);
+    if (insertError) alert("Database error: " + insertError.message);
     else {
-      alert(`Wysłano zaproszenie do ${target}!`);
+      alert(`Invitation sent to ${target}!`);
       setSearchNick("");
       fetchData();
     }
@@ -137,10 +149,15 @@ export default function Friends() {
 
   const handleRequest = async (id: string, action: "ACCEPTED" | "REJECTED") => {
     try {
-      if (action === "REJECTED") await supabase.from("FriendRequest").delete().eq("id", id);
-      else await supabase.from("FriendRequest").update({ status: "ACCEPTED" }).eq("id", id);
+      if (action === "REJECTED") {
+          await supabase.from("FriendRequest").delete().eq("id", id);
+      } else {
+          await supabase.from("FriendRequest").update({ status: "ACCEPTED" }).eq("id", id);
+      }
       fetchData();
-    } catch (error) { console.error(error); }
+    } catch (error) { 
+        console.error(error); 
+    }
   };
 
   useEffect(() => {
@@ -154,7 +171,7 @@ export default function Friends() {
   if (!user) return (
     <div className="friends-container-pro">
       <div className="friends-glass-box">
-        <h2 className="neon-text">ZALOGUJ SIĘ</h2>
+        <h2 className="neon-text">LOG IN</h2>
         <MenuButton label="BACK TO MENU" to="/" external={false} />
       </div>
     </div>
@@ -200,12 +217,12 @@ export default function Friends() {
                       >
                         <div className="friend-meta" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                           
-                          {/* --- AWATAR ZNAJOMEGO --- */}
+                          {/* --- FRIEND AVATAR --- */}
                           <div className="avatar-small" style={{ 
-                             width: '40px', height: '40px', borderRadius: '50%', 
-                             overflow: 'hidden', border: '2px solid #555', 
-                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                             backgroundColor: '#333'
+                               width: '40px', height: '40px', borderRadius: '50%', 
+                               overflow: 'hidden', border: '2px solid #555', 
+                               display: 'flex', alignItems: 'center', justifyContent: 'center',
+                               backgroundColor: '#333'
                           }}>
                             {f.avatarUrl ? (
                                 <img src={f.avatarUrl} alt={friendNick} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -219,19 +236,19 @@ export default function Friends() {
                             
                             {f.friendStats && (
                               <div style={{ display: 'flex', gap: '12px', fontSize: '0.8rem', color: '#aaa', marginTop: '4px' }}>
-                                <span title="Skuteczność Single" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span title="Single Player Accuracy" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                   🎯 <span style={{ color: '#4ade80', fontWeight: 'bold' }}>{f.friendStats.guessed_percentage}%</span>
                                 </span>
-                                <span title="Punkty Multiplayer" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span title="Multiplayer Points" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                   🌐 <span style={{ color: '#facc15', fontWeight: 'bold' }}>{f.friendStats.multi_points}</span>
                                 </span>
                               </div>
                             )}
-                            {!f.friendStats && <span style={{fontSize: '0.7rem', color: '#555'}}>Brak danych</span>}
+                            {!f.friendStats && <span style={{fontSize: '0.7rem', color: '#555'}}>No data available</span>}
                           </div>
                         </div>
                         
-                        <div className="status-indicator online" title="Status online (mock)"></div>
+                        <div className="status-indicator online" title="Online status (mock)"></div>
                       </motion.div>
                     );
                   })}

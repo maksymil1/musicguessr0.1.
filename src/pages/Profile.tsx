@@ -21,7 +21,6 @@ export default function Profile() {
     games: 0,
   });
 
-  // FETCHING DATA
   useEffect(() => {
     const fetchProfileData = async () => {
       if (!user) return;
@@ -29,7 +28,7 @@ export default function Profile() {
       try {
         const { data: profileData, error } = await supabase
           .from("Profiles")
-          .select("games_played, guessed_percentage, points, createdAt, avatar_url")
+          .select("games_played, multi_games_played, guessed_percentage, points, createdAt, avatar_url")
           .eq("id", user.id)
           .single();
 
@@ -39,7 +38,6 @@ export default function Profile() {
         }
 
         if (profileData) {
-          // Set URL to pass to AvatarUploader
           setAvatarUrl(profileData.avatar_url);
 
           setSoloStats({
@@ -50,7 +48,7 @@ export default function Profile() {
 
           setMultiStats({
             totalPoints: profileData.points || 0,
-            games: profileData.games_played || 0,
+            games: profileData.multi_games_played || 0,
           });
         }
       } catch (err) {
@@ -61,27 +59,20 @@ export default function Profile() {
     fetchProfileData();
   }, [user]);
 
-  // UPDATE (Logic to remove old file in background)
   const handleAvatarUpdate = async (newUrl: string) => {
     try {
       if (!user) return;
-
-      // 1. If there was an old avatar, remove it from storage (cleanup)
       if (avatarUrl && avatarUrl !== newUrl) {
         const oldFileName = avatarUrl.split("/avatars/").pop();
         if (oldFileName) {
            await supabase.storage.from("avatars").remove([oldFileName]);
         }
       }
-
-      // 2. Update state and database
       setAvatarUrl(newUrl);
-
       await supabase
         .from("Profiles")
         .update({ avatar_url: newUrl })
         .eq("id", user.id);
-
     } catch (error) {
       console.error("Save error:", error);
     }
@@ -98,14 +89,11 @@ export default function Profile() {
         style={{ maxWidth: "800px", width: "95%", padding: "40px" }}
       >
         <div style={{ marginBottom: "40px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" }}>
-          
-          {/* NOW JUST CLICK THE IMAGE */}
           <AvatarUploader 
             url={avatarUrl} 
             onUpload={handleAvatarUpdate} 
-            size={100} // You can change size here
+            size={100} 
           />
-
           <h1 className="neon-text" style={{ fontSize: "2.5rem", margin: "5px 0 0 0" }}>
             {user.user_metadata?.nickname || "PLAYER"}
           </h1>
@@ -115,33 +103,35 @@ export default function Profile() {
         </div>
 
         <div className="stats-grid">
+          {/* SEKCJA SOLO - WSZYSTKO BIAŁE */}
           <div style={statCardStyle}>
             <h2 style={{ color: "#4ade80", borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: "10px", marginTop: 0 }}>
               👤 SOLO
             </h2>
             <div style={{ marginTop: "20px" }}>
-              <p style={{ color: "#aaa", fontSize: "0.8rem", marginBottom: "5px" }}>ACCURACY</p>
-              <div style={{ fontSize: "2.5rem", fontWeight: "bold", color: "#fff" }}>
-                {soloStats.percentage}%
+              <p style={{ color: "#aaa", fontSize: "0.8rem", marginBottom: "5px" }}>ACCURACY (GAMES)</p>
+              <div style={{ fontSize: "2.2rem", fontWeight: "bold", color: "#4ade80" }}>
+                {soloStats.percentage}% ({soloStats.games})
               </div>
             </div>
             <div style={{ marginTop: "10px", fontSize: "0.9rem", color: "#888" }}>
-              Games played: {soloStats.games}
+              Your single player performance
             </div>
           </div>
 
+          {/* SEKCJA MULTI - WSZYSTKO ŻÓŁTE */}
           <div style={statCardStyle}>
             <h2 style={{ color: "#facc15", borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: "10px", marginTop: 0 }}>
               🌐 MULTIPLAYER
             </h2>
             <div style={{ marginTop: "20px" }}>
-              <p style={{ color: "#aaa", fontSize: "0.8rem", marginBottom: "5px" }}>TOTAL SCORE</p>
-              <div style={{ fontSize: "2.5rem", fontWeight: "bold", color: "#facc15" }}>
-                {multiStats.totalPoints}
+              <p style={{ color: "#aaa", fontSize: "0.8rem", marginBottom: "5px" }}>TOTAL SCORE (GAMES)</p>
+              <div style={{ fontSize: "2.2rem", fontWeight: "bold", color: "#facc15" }}>
+                {multiStats.totalPoints.toLocaleString()} ({multiStats.games})
               </div>
             </div>
              <div style={{ marginTop: "10px", fontSize: "0.9rem", color: "#888" }}>
-               Points earned in lobby
+                Points earned in global lobbies
             </div>
           </div>
         </div>

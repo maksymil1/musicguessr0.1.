@@ -3,7 +3,7 @@ import { useParams, Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import MenuButton from "../components/MenuButton/MenuButton";
 
-// Komponenty
+// Components
 import QuizPlayer from "../components/QuizPlayer";
 import GameModes from "./GameModes/GameModes";
 import Genres from "./GameModes/Genres";
@@ -27,7 +27,7 @@ export default function MultiplayerGame() {
   const [players, setPlayers] = useState<any[]>([]);
   const [hostStep, setHostStep] = useState<"MODES" | "GENRES">("MODES");
   
-  // Zabezpieczenie przed podwójnym zapisem
+  // Protection against double saving results
   const [isSaving, setIsSaving] = useState(false);
   const hasFinished = useRef(false);
 
@@ -145,7 +145,7 @@ export default function MultiplayerGame() {
     };
   }, [roomId, myPlayerId, fetchPlayers]);
 
-  // --- PRZYWRÓCONE I POPRAWIONE HANDLERY ---
+  // --- ROOM SETUP HANDLERS ---
 
   const handleHostSelectMode = (mode: GameMode) => {
     if (mode === "genre") setHostStep("GENRES");
@@ -176,7 +176,12 @@ export default function MultiplayerGame() {
     hasFinished.current = true;
 
     try {
+      // 1. Mark room as finished in the DB
       await supabase.from("Room").update({ status: "FINISHED" }).eq("id", roomId);
+
+      // 2. WAIT: Give players 1.5s to sync their final local scores to the 'Player' table
+      // This prevents the host from pulling old/incomplete score data.
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
       const { data: roomPlayers } = await supabase
         .from("Player")
@@ -184,6 +189,7 @@ export default function MultiplayerGame() {
         .eq("roomId", roomId);
 
       if (roomPlayers) {
+        // 3. Increment permanent global points via Database RPC
         await Promise.all(
           roomPlayers.map(p => 
             supabase.rpc("increment_profile_points", { 
@@ -198,6 +204,7 @@ export default function MultiplayerGame() {
       hasFinished.current = false;
       setIsSaving(false);
     } finally {
+      // Refresh local player list to show final results
       setTimeout(() => fetchPlayers(), 300);
     }
   };
@@ -277,9 +284,9 @@ export default function MultiplayerGame() {
     }
 
     return (
-      <div className="flex flex-col items-center justify-center text-white h-full">
+      <div className="flex flex-col items-center justify-center text-white h-full w-full min-h-[70vh]">
         <div className="animate-spin h-16 w-16 border-4 border-green-500 rounded-full border-t-transparent mb-6"></div>
-        <h2 className="text-3xl font-bold tracking-widest">OCZEKIWANIE...</h2>
+        <h2 className="text-3xl font-bold tracking-widest uppercase">Waiting for Host...</h2>
       </div>
     );
   };
@@ -296,7 +303,12 @@ export default function MultiplayerGame() {
 
         {(isGameActive || roomState.status === "FINISHED") && (
           <div className="chat-column">
-            <ChatWindow roomId={roomId} nickname={myNickname} currentTrack={currentTrack} roundStartTime={roomState.currentSongStart} />
+            <ChatWindow 
+              roomId={roomId} 
+              nickname={myNickname} 
+              currentTrack={currentTrack} 
+              roundStartTime={roomState.currentSongStart} 
+            />
           </div>
         )}
       </div>

@@ -103,7 +103,7 @@ export default function MusicPage() {
             </div>
           )) : <p style={{ color: "#555", marginTop: "20px" }}>Type something and click search...</p>}
         </div>
-        <div><MenuButton label="BACK" to="/" external={false} /></div>
+        <div><MenuButton label="BACK TO MENU" to="/" external={false} /></div>
       </div>
 
       {/* STYLING AND HIDING VOLUME SLIDER */}

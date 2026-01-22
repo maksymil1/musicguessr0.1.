@@ -10,13 +10,13 @@ interface VolumeContextType {
 const VolumeContext = createContext<VolumeContextType | undefined>(undefined);
 
 export function VolumeProvider({ children }: { children: React.ReactNode }) {
-  // 1. Wczytujemy głośność z pamięci (domyślnie 50)
+  // 1. Load volume from storage (default 50)
   const [volume, setVolumeState] = useState(() => {
     const saved = localStorage.getItem("appVolume");
     return saved ? parseInt(saved, 10) : 50;
   });
 
-  // 2. Wczytujemy stan wyciszenia (domyślnie false)
+  // 2. Load mute state from storage (default false)
   const [isMuted, setIsMutedState] = useState(() => {
     const saved = localStorage.getItem("appMuted");
     return saved === "true";
