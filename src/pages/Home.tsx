@@ -13,7 +13,7 @@ export default function Home() {
   const { user, signOut, loading } = useAuth();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
-  // Pobieramy awatar użytkownika, jeśli jest zalogowany
+  // Fetch user avatar if logged in
   useEffect(() => {
     const fetchAvatar = async () => {
       if (!user) return;
@@ -43,7 +43,7 @@ export default function Home() {
   return (
     <div className="master">
       
-      {/* SEKCJA LOGOWANIA I PROFILU */}
+      {/* LOGIN AND PROFILE SECTION */}
       <div style={{ 
         position: 'absolute', 
         top: '20px', 
@@ -55,14 +55,14 @@ export default function Home() {
       }}>
         {!loading && (
           user ? (
-            /* PANEL ZALOGOWANEGO UŻYTKOWNIKA */
+            /* LOGGED-IN USER PANEL */
             <div className="user-glass-panel" style={{ 
               position: 'static',
               display: 'flex',
               alignItems: 'center',
               gap: '15px' 
             }}>
-              {/* IKONKA PROFILU Z AWATAREM */}
+              {/* PROFILE ICON WITH AVATAR */}
               <NavLink 
                 to="/profile" 
                 style={{ 
@@ -72,7 +72,7 @@ export default function Home() {
                   position: 'relative'
                 }}
                 className="profile-avatar-link"
-                title="Przejdź do profilu"
+                title="Go to profile"
               >
                 <div style={{
                   width: '45px',
@@ -100,7 +100,7 @@ export default function Home() {
               <span style={{ color: '#4ade80', fontWeight: 'bold' }}>{userNick}</span>
               
               <button onClick={signOut} className="logout-glass-btn">
-                WYLOGUJ
+                LOGOUT
               </button>
             </div>
           ) : (

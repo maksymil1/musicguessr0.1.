@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../context/AuthContext";
+import MenuButton from "../components/MenuButton/MenuButton.tsx"; // Importujemy Twój komponent
 import logo from "../assets/logo.png";
 import "./home.css";
 
@@ -17,8 +18,7 @@ export default function PlayMenu() {
   // --- 1. AUTO-UZUPEŁNIANIE NICKU ---
   useEffect(() => {
     if (user) {
-      const userNick =
-        user.user_metadata?.nickname || user.email?.split("@")[0];
+      const userNick = user.user_metadata?.nickname || user.email?.split("@")[0];
       setNickname(userNick);
     } else {
       const stored = localStorage.getItem("myNickname");
@@ -28,8 +28,6 @@ export default function PlayMenu() {
 
   // --- 2. SETUP ---
   const setupPlayer = () => {
-    // Jeśli user jest zalogowany, używamy jego ID. Jeśli gość - losujemy UUID.
-    // UWAGA: Dla zalogowanych to ID jest stałe, stąd błąd przy ponownym wejściu.
     const playerId = user ? user.id : crypto.randomUUID();
     localStorage.setItem("myNickname", nickname);
     localStorage.setItem("myPlayerId", playerId);
@@ -41,19 +39,11 @@ export default function PlayMenu() {
     setIsLoading(true);
 
     try {
-      // Opcjonalnie: czyścimy bardzo stare pokoje (jak w oryginale)
-      const yesterday = new Date(
-        Date.now() - 24 * 60 * 60 * 1000,
-      ).toISOString();
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       await supabase.from("Room").delete().lt("createdAt", yesterday);
 
       const playerId = setupPlayer();
-
-      // --- POPRAWKA TUTAJ ---
-      // Zanim stworzymy nowy wpis, usuwamy "wiszącego" gracza z poprzedniej sesji.
-      // Dzięki temu unikamy błędu "Player_pkey".
       await supabase.from("Player").delete().eq("id", playerId);
-      // ----------------------
 
       const newCode = Math.floor(1000 + Math.random() * 9000).toString();
       const roomId = crypto.randomUUID();
@@ -97,26 +87,14 @@ export default function PlayMenu() {
       }
 
       const playerId = setupPlayer();
-
-      // --- POPRAWKA RÓWNIEŻ TUTAJ ---
-      // Przy dołączaniu też musimy wyczyścić starego "ducha", jeśli istnieje.
       await supabase.from("Player").delete().eq("id", playerId);
-      // -----------------------------
 
       const targetRoomId = (room as any).id;
 
       const { error: playerError } = await supabase.from("Player").insert([
-        {
-          id: playerId,
-          nickname,
-          roomId: targetRoomId,
-          isHost: false,
-          score: 0,
-        },
+        { id: playerId, nickname, roomId: targetRoomId, isHost: false, score: 0 },
       ]);
 
-      // Ten kod 23505 to właśnie duplicate key, ale dzięki powyższemu delete nie powinien już wystąpić.
-      // Zostawiamy jako zabezpieczenie.
       if (playerError && playerError.code !== "23505") throw playerError;
 
       navigate(`/lobby/${targetRoomId}`);
@@ -164,12 +142,7 @@ export default function PlayMenu() {
           minHeight: "100vh",
         }}
       >
-        <img
-          src={logo}
-          alt="MusicGuessr logo"
-          className="logo"
-          style={{ marginBottom: "0px" }}
-        />
+        <img src={logo} alt="MusicGuessr logo" className="logo" style={{ marginBottom: "0px" }} />
 
         <div
           className="buttons"
@@ -186,24 +159,8 @@ export default function PlayMenu() {
         >
           {user ? (
             <div className="menu-button" style={loggedInStyle}>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "0.9rem",
-                  color: "#aaa",
-                  textTransform: "uppercase",
-                  letterSpacing: "3px",
-                }}
-              >
-                LOGGED AS
-              </p>
-              <div
-                style={{
-                  fontSize: "2rem",
-                  fontWeight: "bold",
-                  textShadow: "0 0 15px rgba(74, 222, 128, 0.4)",
-                }}
-              >
+              <p style={{ margin: 0, fontSize: "0.9rem", color: "#aaa", letterSpacing: "3px" }}>LOGGED AS</p>
+              <div style={{ fontSize: "2rem", fontWeight: "bold", textShadow: "0 0 15px rgba(74, 222, 128, 0.4)" }}>
                 {nickname}
               </div>
             </div>
@@ -213,42 +170,15 @@ export default function PlayMenu() {
                 whileHover={{ scale: 1.02 }}
                 onClick={() => navigate("/login")}
                 className="menu-button"
-                style={{
-                  ...bigControlStyle,
-                  background: "transparent",
-                  border: "2px solid #4ade80",
-                  color: "white",
-                  fontSize: "1.2rem",
-                }}
+                style={{ ...bigControlStyle, background: "transparent", border: "2px solid #4ade80", color: "white", fontSize: "1.2rem" }}
               >
                 LOGIN (SAVE STATS)
               </motion.button>
 
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  width: "100%",
-                  gap: "15px",
-                }}
-              >
-                <div
-                  style={{
-                    height: "1px",
-                    background: "rgba(255,255,255,0.3)",
-                    flex: 1,
-                  }}
-                ></div>
-                <p style={{ color: "white", fontSize: "0.8rem", margin: 0 }}>
-                  OR
-                </p>
-                <div
-                  style={{
-                    height: "1px",
-                    background: "rgba(255,255,255,0.3)",
-                    flex: 1,
-                  }}
-                ></div>
+              <div style={{ display: "flex", alignItems: "center", width: "100%", gap: "15px" }}>
+                <div style={{ height: "1px", background: "rgba(255,255,255,0.3)", flex: 1 }}></div>
+                <p style={{ color: "white", fontSize: "0.8rem", margin: 0 }}>OR</p>
+                <div style={{ height: "1px", background: "rgba(255,255,255,0.3)", flex: 1 }}></div>
               </div>
 
               <input
@@ -257,13 +187,7 @@ export default function PlayMenu() {
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 className="menu-button"
-                style={{
-                  ...bigControlStyle,
-                  textAlign: "center",
-                  background: "rgba(0,0,0,0.5)",
-                  border: "2px solid white",
-                  color: "white",
-                }}
+                style={{ ...bigControlStyle, textAlign: "center", background: "rgba(0,0,0,0.5)", border: "2px solid white", color: "white" }}
               />
             </>
           )}
@@ -273,12 +197,7 @@ export default function PlayMenu() {
             className="menu-button"
             onClick={createRoom}
             disabled={isLoading}
-            style={{
-              ...bigControlStyle,
-              background: "white",
-              color: "black",
-              fontSize: "2rem",
-            }}
+            style={{ ...bigControlStyle, background: "white", color: "black", fontSize: "2rem" }}
           >
             {isLoading ? "CREATING..." : "CREATE ROOM"}
           </motion.button>
@@ -291,26 +210,13 @@ export default function PlayMenu() {
               value={roomCode}
               onChange={(e) => setRoomCode(e.target.value)}
               className="menu-button"
-              style={{
-                ...bigControlStyle,
-                textAlign: "center",
-                background: "rgba(0,0,0,0.5)",
-                border: "2px solid white",
-                color: "white",
-                flex: 1,
-                minWidth: "0",
-              }}
+              style={{ ...bigControlStyle, textAlign: "center", background: "rgba(0,0,0,0.5)", border: "2px solid white", color: "white", flex: 1, minWidth: "0" }}
             />
 
             <motion.button
               whileHover={{ scale: 1.05 }}
               className="menu-button"
-              style={{
-                ...bigControlStyle,
-                background: "#4ade80",
-                color: "black",
-                flex: 1,
-              }}
+              style={{ ...bigControlStyle, background: "#4ade80", color: "black", flex: 1 }}
               onClick={joinRoom}
               disabled={isLoading}
             >
@@ -318,20 +224,10 @@ export default function PlayMenu() {
             </motion.button>
           </div>
 
-          <button
-            onClick={() => navigate("/")}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "#aaa",
-              marginTop: "10px",
-              cursor: "pointer",
-              textDecoration: "underline",
-              fontSize: "1rem",
-            }}
-          >
-            Back to main menu
-          </button>
+          {/* TUTAJ POPRAWKA: Używamy Twojego MenuButton dla spójności */}
+          <div style={{ marginTop: "30px", width: "100%", display: "flex", justifyContent: "center" }}>
+            <MenuButton label="BACK TO MENU" to="/" />
+          </div>
         </div>
       </div>
     </div>

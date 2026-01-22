@@ -1,23 +1,23 @@
 import { useState, useEffect, useRef } from "react";
 import MenuButton from "../components/MenuButton/MenuButton.tsx";
-import { useVolume } from "../context/VolumeContext"; // Import kontekstu
+import { useVolume } from "../context/VolumeContext"; // Context import
 import "./Ranking.css";
 
 type SearchCategory = "popular" | "artist" | "genre" | "years";
 
-// --- MAŁY KOMPONENT ŻEBY AUDIO REAGOWAŁO NA GLOBALNĄ GŁOŚNOŚĆ ---
+// --- SMALL COMPONENT TO SYNC AUDIO WITH GLOBAL VOLUME ---
 const NativeAudio = ({ src }: { src: string }) => {
   const { volume, isMuted } = useVolume();
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // Synchronizacja głośności
+  // Volume synchronization
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = isMuted ? 0 : volume / 100;
     }
   }, [volume, isMuted]);
 
-  // Pauzowanie innych przy starcie
+  // Pause other players when starting a new track
   const handlePlay = () => {
     document.querySelectorAll('audio').forEach((el) => {
       if (el !== audioRef.current) (el as HTMLAudioElement).pause();
@@ -31,7 +31,7 @@ const NativeAudio = ({ src }: { src: string }) => {
       src={src} 
       onPlay={handlePlay}
       style={{ width: "100%", height: "30px", marginTop: "8px" }}
-      // Klasa potrzebna do ukrycia suwaka w CSS
+      // Class needed to hide the volume slider in CSS
       className="no-volume-audio"
     />
   );
@@ -60,58 +60,58 @@ export default function MusicPage() {
         id: item.trackId, name: item.trackName, artist: item.artistName, preview_url: item.previewUrl, albumArt: item.artworkUrl100,
       }));
       setResults(songs);
-    } catch (e) { console.error("Błąd:", e); } finally { setLoading(false); }
+    } catch (e) { console.error("Error:", e); } finally { setLoading(false); }
   };
 
   return (
     <div className="ranking-master">
       <div className="ranking-card" style={{ maxWidth: "600px", minHeight: "650px" }}>
         <h1 className="neon-text">MUSIC EXPLORER</h1>
-        <p className="subtitle">Przeglądaj bazę iTunes - Bez logowania</p>
+        <p className="subtitle">Browse the iTunes database - No login required</p>
 
         <div className="category-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
-          <button onClick={() => setCategory("popular")} className={category === "popular" ? "btn-active" : "btn-off"} style={catBtnStyle}>POPULARNE</button>
-          <button onClick={() => setCategory("artist")} className={category === "artist" ? "btn-active" : "btn-off"} style={catBtnStyle}>ARTYSTA</button>
-          <button onClick={() => setCategory("genre")} className={category === "genre" ? "btn-active" : "btn-off"} style={catBtnStyle}>GATUNEK</button>
-          <button onClick={() => setCategory("years")} className={category === "years" ? "btn-active" : "btn-off"} style={catBtnStyle}>LATA</button>
+          <button onClick={() => setCategory("popular")} className={category === "popular" ? "btn-active" : "btn-off"} style={catBtnStyle}>POPULAR</button>
+          <button onClick={() => setCategory("artist")} className={category === "artist" ? "btn-active" : "btn-off"} style={catBtnStyle}>ARTIST</button>
+          <button onClick={() => setCategory("genre")} className={category === "genre" ? "btn-active" : "btn-off"} style={catBtnStyle}>GENRE</button>
+          <button onClick={() => setCategory("years")} className={category === "years" ? "btn-active" : "btn-off"} style={catBtnStyle}>YEARS</button>
         </div>
 
         <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
           <input
             type="text"
-            placeholder={category === "artist" ? "Wpisz artystę..." : "Wyszukaj hity..."}
+            placeholder={category === "artist" ? "Enter artist name..." : "Search hits..."}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && search()}
             style={{ flex: 1, padding: "12px", borderRadius: "10px", background: "#000", color: "#fff", border: "1px solid #4ade80" }}
           />
-          <button onClick={search} style={{ background: "#4ade80", color: "black", border: "none", padding: "10px 20px", borderRadius: "10px", fontWeight: "bold", cursor: "pointer" }}>SZUKAJ</button>
+          <button onClick={search} style={{ background: "#4ade80", color: "black", border: "none", padding: "10px 20px", borderRadius: "10px", fontWeight: "bold", cursor: "pointer" }}>SEARCH</button>
         </div>
 
         <div className="ranking-list" style={{ maxHeight: "350px", overflowY: "auto", paddingRight: "5px" }}>
-          {loading ? <p>Szukanie...</p> : results.length > 0 ? results.map((track) => (
+          {loading ? <p>Searching...</p> : results.length > 0 ? results.map((track) => (
             <div key={track.id} className="ranking-row" style={{ display: "flex", alignItems: "center", gap: "15px", padding: "10px", background: "rgba(255,255,255,0.05)", marginBottom: "10px", borderRadius: "12px" }}>
               <img src={track.albumArt} alt="Cover" style={{ width: "50px", borderRadius: "5px" }} />
               <div style={{ flex: 1, textAlign: "left" }}>
                 <div style={{ color: "#4ade80", fontWeight: "bold", fontSize: "0.9rem" }}>{track.name}</div>
                 <div style={{ fontSize: "0.7rem", color: "#888" }}>{track.artist}</div>
                 
-                {/* TUTAJ UŻYWAMY NASZEGO SYSTEMOWEGO ODTWARZACZA BEZ SUWAKA */}
+                {/* SYSTEM AUDIO PLAYER WITHOUT SLIDER */}
                 <NativeAudio src={track.preview_url} />
                 
               </div>
             </div>
-          )) : <p style={{ color: "#555", marginTop: "20px" }}>Wpisz coś i kliknij szukaj...</p>}
+          )) : <p style={{ color: "#555", marginTop: "20px" }}>Type something and click search...</p>}
         </div>
         <div><MenuButton label="BACK" to="/" external={false} /></div>
       </div>
 
-      {/* STYLOWANIE I UKRYWANIE SUWAKA GŁOŚNOŚCI */}
+      {/* STYLING AND HIDING VOLUME SLIDER */}
       <style>{`
         .btn-active { background: #4ade80; color: #000; border: none; }
         .btn-off { background: #222; color: #fff; border: 1px solid #444; }
 
-        /* MAGIA CSS: Ukrywamy suwak głośności i przycisk mute na systemowym playerze */
+        /* CSS MAGIC: Hiding volume slider and mute button on system player */
         audio.no-volume-audio::-webkit-media-controls-volume-slider,
         audio.no-volume-audio::-webkit-media-controls-mute-button,
         audio.no-volume-audio::-webkit-media-controls-volume-control-container,

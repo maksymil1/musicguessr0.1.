@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { GENRE_LIST } from "../../types/genres";
@@ -22,7 +21,7 @@ const Genres = ({ onGenreSelect }: GenresProps) => {
       // Multiplayer
       onGenreSelect(genre.playlistUrn, genre.label);
     } else {
-      // Single Player (jeśli kiedyś przywrócisz)
+      // Single Player (if restored in the future)
       navigate(`/play/${genre.slug}`, {
         state: { playlistUrn: genre.playlistUrn, urn: genre.urn },
       });
@@ -31,15 +30,15 @@ const Genres = ({ onGenreSelect }: GenresProps) => {
 
   return (
     <div className="genre-container">
-      <h3 className="genre-header">WYBIERZ GATUNEK</h3>
+      <h3 className="genre-header">SELECT GENRE</h3>
 
       <div className="genre-sidebar">
         <input
           className="genre-search-input"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
-          placeholder="Wyszukaj gatunek..."
-          autoFocus // Automatycznie zaznacza pole po wejściu
+          placeholder="Search genre..."
+          autoFocus // Automatically focus input on mount
         />
 
         <ul className="genre-list">
@@ -68,7 +67,7 @@ const Genres = ({ onGenreSelect }: GenresProps) => {
             ))
           ) : (
             <li style={{ padding: "20px", textAlign: "center", color: "#666" }}>
-              Nie znaleziono gatunku "{inputValue}"
+              No genre found for "{inputValue}"
             </li>
           )}
         </ul>

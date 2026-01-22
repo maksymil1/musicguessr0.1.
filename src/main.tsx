@@ -21,6 +21,7 @@ import Friends from "./pages/Friends.tsx";
 import Login from "./pages/Login.tsx";
 import Profile from "./pages/Profile.tsx";
 
+
 // KONFIGURACJA ROUTERA
 const router = createBrowserRouter([
   {

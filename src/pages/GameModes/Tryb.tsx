@@ -1,10 +1,10 @@
-import MenuButton from "../../components/MenuButton/MenuButton"; // Upewnij się co do ścieżki
+import MenuButton from "../../components/MenuButton/MenuButton"; // Ensure the path is correct
 import "./GameModes.css";
 
 export default function Tryb() {
   return (
     <div className="gamemodes-page">
-      <h1 className="gamemodes-title">Wybierz tryb rozgrywki</h1>
+      <h1 className="gamemodes-title">Select Game Mode</h1>
 
       <div className="gamemodes-list">
         <MenuButton label="SINGLEPLAYER" to="singleplayer" />

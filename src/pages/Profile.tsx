@@ -21,7 +21,7 @@ export default function Profile() {
     games: 0,
   });
 
-  // POBIERANIE DANYCH
+  // FETCHING DATA
   useEffect(() => {
     const fetchProfileData = async () => {
       if (!user) return;
@@ -39,7 +39,7 @@ export default function Profile() {
         }
 
         if (profileData) {
-          // Tutaj ustawiamy URL, który przekażemy do AvatarUploader
+          // Set URL to pass to AvatarUploader
           setAvatarUrl(profileData.avatar_url);
 
           setSoloStats({
@@ -54,19 +54,19 @@ export default function Profile() {
           });
         }
       } catch (err) {
-        console.error("Błąd ogólny:", err);
+        console.error("General error:", err);
       }
     };
 
     fetchProfileData();
   }, [user]);
 
-  // AKTUALIZACJA (Logika usuwania starego pliku w tle)
+  // UPDATE (Logic to remove old file in background)
   const handleAvatarUpdate = async (newUrl: string) => {
     try {
       if (!user) return;
 
-      // 1. Jeśli był stary awatar, usuń go ze storage (czyszczenie śmieci)
+      // 1. If there was an old avatar, remove it from storage (cleanup)
       if (avatarUrl && avatarUrl !== newUrl) {
         const oldFileName = avatarUrl.split("/avatars/").pop();
         if (oldFileName) {
@@ -74,7 +74,7 @@ export default function Profile() {
         }
       }
 
-      // 2. Aktualizuj stan i bazę
+      // 2. Update state and database
       setAvatarUrl(newUrl);
 
       await supabase
@@ -83,7 +83,7 @@ export default function Profile() {
         .eq("id", user.id);
 
     } catch (error) {
-      console.error("Błąd zapisu:", error);
+      console.error("Save error:", error);
     }
   };
 
@@ -99,18 +99,18 @@ export default function Profile() {
       >
         <div style={{ marginBottom: "40px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" }}>
           
-          {/* TERAZ KLIKASZ PO PROSTU W ZDJĘCIE */}
+          {/* NOW JUST CLICK THE IMAGE */}
           <AvatarUploader 
             url={avatarUrl} 
             onUpload={handleAvatarUpdate} 
-            size={100} // Możesz zmienić wielkość tutaj
+            size={100} // You can change size here
           />
 
           <h1 className="neon-text" style={{ fontSize: "2.5rem", margin: "5px 0 0 0" }}>
-            {user.user_metadata?.nickname || "GRACZ"}
+            {user.user_metadata?.nickname || "PLAYER"}
           </h1>
           <p style={{ color: "#888", marginTop: "5px", fontSize: "0.9rem" }}>
-            Dołączył: {soloStats.joinedAt}
+            Joined: {soloStats.joinedAt}
           </p>
         </div>
 
@@ -120,13 +120,13 @@ export default function Profile() {
               👤 SOLO
             </h2>
             <div style={{ marginTop: "20px" }}>
-              <p style={{ color: "#aaa", fontSize: "0.8rem", marginBottom: "5px" }}>SKUTECZNOŚĆ</p>
+              <p style={{ color: "#aaa", fontSize: "0.8rem", marginBottom: "5px" }}>ACCURACY</p>
               <div style={{ fontSize: "2.5rem", fontWeight: "bold", color: "#fff" }}>
                 {soloStats.percentage}%
               </div>
             </div>
             <div style={{ marginTop: "10px", fontSize: "0.9rem", color: "#888" }}>
-              Rozegrane gry: {soloStats.games}
+              Games played: {soloStats.games}
             </div>
           </div>
 
@@ -141,7 +141,7 @@ export default function Profile() {
               </div>
             </div>
              <div style={{ marginTop: "10px", fontSize: "0.9rem", color: "#888" }}>
-               Punkty zdobyte w lobby
+               Points earned in lobby
             </div>
           </div>
         </div>

@@ -1,10 +1,10 @@
 import { useNavigate } from "react-router-dom";
-import MenuButton from "../../components/MenuButton/MenuButton"; // Upewnij się co do ścieżki
+import MenuButton from "../../components/MenuButton/MenuButton"; // Ensure path is correct
 import type { GameMode } from "../../types/types";
 import "./GameModes.css";
 
 interface GameModesProps {
-  onModeSelect?: (mode: GameMode) => void; // Nowy props dla Multiplayera
+  onModeSelect?: (mode: GameMode) => void; // New prop for Multiplayer
 }
 
 export default function GameModes({ onModeSelect }: GameModesProps) {
@@ -12,32 +12,32 @@ export default function GameModes({ onModeSelect }: GameModesProps) {
 
   const handleSelect = (mode: GameMode, path: string) => {
     if (onModeSelect) {
-      // Tryb Multiplayer (zostajemy w pokoju)
+      // Multiplayer mode (stay in the room)
       onModeSelect(mode);
     } else {
-      // Tryb Single Player (zmieniamy stronę)
+      // Single Player mode (navigate to path)
       navigate(path);
     }
   };
 
   return (
     <div className="gamemodes-page">
-      <h1 className="gamemodes-title">Wybierz tryb rozgrywki</h1>
+      <h1 className="gamemodes-title">Select Game Mode</h1>
 
       <div className="gamemodes-list">
-        {/* Przycisk: PLAYLISTA */}
+        {/* Button: PLAYLIST */}
         <div onClick={() => handleSelect("playlist", "/play/playlist")}>
-          <MenuButton label="PLAYLISTA" to="#" disabledLink />
+          <MenuButton label="PLAYLIST" to="#" disabledLink />
         </div>
 
-        {/* Przycisk: GATUNEK */}
+        {/* Button: GENRE */}
         <div onClick={() => handleSelect("genre", "/genres")}>
-          <MenuButton label="GATUNEK" to="#" disabledLink />
+          <MenuButton label="GENRE" to="#" disabledLink />
         </div>
 
-        {/* Przycisk: ARTYSTA */}
+        {/* Button: ARTIST */}
         <div onClick={() => handleSelect("artist", "/play/artist")}>
-          <MenuButton label="ARTYSTA" to="#" disabledLink />
+          <MenuButton label="ARTIST" to="#" disabledLink />
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import MenuButton from "../components/MenuButton/MenuButton";
@@ -8,20 +8,29 @@ import QuizPlayer from "../components/QuizPlayer";
 import GameModes from "./GameModes/GameModes";
 import Genres from "./GameModes/Genres";
 import ChatWindow from "../components/ChatWindow";
-import Results from "./Results"; // <--- NOWY IMPORT
+import Results from "./Results"; 
 
 import type { GameMode, GameTrack } from "../types/types";
 import "../pages/home.css";
 import "./MultiplayerGame.css";
 
 export default function MultiplayerGame() {
-  // ... (Cała logika bez zmian aż do renderLeftColumn) ...
   const { roomId } = useParams();
   const navigate = useNavigate();
+
   if (!roomId) return <Navigate to="/" replace />;
+
   const myNickname = localStorage.getItem("myNickname") || "Anon";
   const myPlayerId = localStorage.getItem("myPlayerId");
+
   const [isHost, setIsHost] = useState(false);
+  const [players, setPlayers] = useState<any[]>([]);
+  const [hostStep, setHostStep] = useState<"MODES" | "GENRES">("MODES");
+  
+  // Zabezpieczenie przed podwójnym zapisem
+  const [isSaving, setIsSaving] = useState(false);
+  const hasFinished = useRef(false);
+
   const [roomState, setRoomState] = useState<{
     status: "WAITING" | "PLAYING" | "FINISHED";
     gameMode: GameMode | null;
@@ -37,26 +46,42 @@ export default function MultiplayerGame() {
     currentRound: 0,
     currentSongStart: null,
   });
-  const [players, setPlayers] = useState<any[]>([]);
-  const [hostStep, setHostStep] = useState<"MODES" | "GENRES">("MODES");
-
-  // ... (tutaj są funkcje fetchPlayers, useEffecty, handlery - zostaw je bez zmian) ...
-  // Poniżej wklejam brakujące funkcje dla pewności, że masz kontekst, ale główna zmiana jest w renderLeftColumn.
 
   const fetchPlayers = useCallback(async () => {
-    const { data } = await supabase
+    const { data: sessionPlayers, error: playerError } = await supabase
       .from("Player")
       .select("*")
       .eq("roomId", roomId)
       .order("score", { ascending: false });
-    if (data)
+    
+    if (playerError) return;
+
+    if (sessionPlayers && sessionPlayers.length > 0) {
+      const nicknames = sessionPlayers.map(p => p.nickname);
+      const { data: profiles } = await supabase
+        .from("Profiles")
+        .select("nickname, avatar_url")
+        .in("nickname", nicknames);
+
+      const enrichedPlayers = sessionPlayers.map(p => {
+        const profile = profiles?.find(pr => pr.nickname === p.nickname);
+        return {
+          ...p,
+          avatar_url: profile?.avatar_url || null
+        };
+      });
+
       setPlayers((prev) =>
-        JSON.stringify(prev) !== JSON.stringify(data) ? data : prev,
+        JSON.stringify(prev) !== JSON.stringify(enrichedPlayers) ? enrichedPlayers : prev
       );
+    } else {
+      setPlayers([]);
+    }
   }, [roomId]);
 
   useEffect(() => {
     if (!roomId) return;
+
     const checkHost = async () => {
       const { data } = await supabase
         .from("Player")
@@ -65,14 +90,15 @@ export default function MultiplayerGame() {
         .single();
       if (data?.isHost) setIsHost(true);
     };
-    checkHost();
+
     const fetchRoomState = async () => {
       const { data } = await supabase
         .from("Room")
         .select("*")
         .eq("id", roomId)
         .single();
-      if (data)
+      
+      if (data) {
         setRoomState({
           status: data.status,
           gameMode: data.gameMode as GameMode,
@@ -81,19 +107,19 @@ export default function MultiplayerGame() {
           currentRound: data.currentRound,
           currentSongStart: data.currentSongStart,
         });
+        if (data.status === "FINISHED") hasFinished.current = true;
+      }
     };
+
+    checkHost();
     fetchRoomState();
     fetchPlayers();
+
     const channel = supabase
       .channel(`multiplayer-game-${roomId}`)
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "Room",
-          filter: `id=eq.${roomId}`,
-        },
+        { event: "UPDATE", schema: "public", table: "Room", filter: `id=eq.${roomId}` },
         (payload) => {
           const newData = payload.new;
           setRoomState((prev) => ({
@@ -105,32 +131,31 @@ export default function MultiplayerGame() {
             currentRound: newData.currentRound,
             currentSongStart: newData.currentSongStart,
           }));
-        },
+        }
       )
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "Player",
-          filter: `roomId=eq.${roomId}`,
-        },
-        () => fetchPlayers(),
+        { event: "*", schema: "public", table: "Player", filter: `roomId=eq.${roomId}` },
+        () => fetchPlayers()
       )
       .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
     };
   }, [roomId, myPlayerId, fetchPlayers]);
 
-  // Handlery (muszą być zdefiniowane)
+  // --- PRZYWRÓCONE I POPRAWIONE HANDLERY ---
+
   const handleHostSelectMode = (mode: GameMode) => {
     if (mode === "genre") setHostStep("GENRES");
     else updateRoomSetup(mode, "");
   };
+
   const handleHostSelectGenre = (_: string, label: string) => {
     updateRoomSetup("genre", label);
   };
+
   const updateRoomSetup = async (mode: GameMode, query: string) => {
     setRoomState((prev) => ({
       ...prev,
@@ -140,15 +165,47 @@ export default function MultiplayerGame() {
     }));
     await supabase
       .from("Room")
-      .update({ gameMode: mode, gameQuery: query })
+      .update({ gameMode: mode, gameQuery: query, status: "WAITING" })
       .eq("id", roomId);
   };
-  const handleGameFinish = () => {
-    if (isHost)
-      supabase.from("Room").update({ status: "FINISHED" }).eq("id", roomId);
-    setTimeout(() => fetchPlayers(), 500);
+
+  const handleGameFinish = async () => {
+    if (!isHost || isSaving || hasFinished.current) return;
+
+    setIsSaving(true);
+    hasFinished.current = true;
+
+    try {
+      await supabase.from("Room").update({ status: "FINISHED" }).eq("id", roomId);
+
+      const { data: roomPlayers } = await supabase
+        .from("Player")
+        .select("nickname, score")
+        .eq("roomId", roomId);
+
+      if (roomPlayers) {
+        await Promise.all(
+          roomPlayers.map(p => 
+            supabase.rpc("increment_profile_points", { 
+              p_nickname: p.nickname, 
+              p_score: p.score 
+            })
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Critical error saving scores:", err);
+      hasFinished.current = false;
+      setIsSaving(false);
+    } finally {
+      setTimeout(() => fetchPlayers(), 300);
+    }
   };
+
   const handleRestartGame = async () => {
+    hasFinished.current = false;
+    setIsSaving(false);
+
     await supabase.from("Player").update({ score: 0 }).eq("roomId", roomId);
     await supabase
       .from("Room")
@@ -163,12 +220,14 @@ export default function MultiplayerGame() {
     setHostStep("MODES");
     setPlayers((prev) => prev.map((p) => ({ ...p, score: 0 })));
   };
+
   const handleCloseRoom = async () => {
     await supabase.from("Room").delete().eq("id", roomId);
     navigate("/");
   };
 
   const isGameActive = !!roomState.gameMode && roomState.status !== "FINISHED";
+  
   const currentTrack =
     roomState.gameQueue && roomState.gameQueue[roomState.currentRound]
       ? {
@@ -177,7 +236,6 @@ export default function MultiplayerGame() {
         }
       : null;
 
-  // --- ZMIANA TUTAJ: Nowy renderLeftColumn ---
   const renderLeftColumn = () => {
     if (roomState.status === "FINISHED") {
       return (
@@ -204,17 +262,13 @@ export default function MultiplayerGame() {
         />
       );
     }
+
     if (isHost) {
       return hostStep === "GENRES" ? (
         <div className="w-full flex flex-col items-center">
-          {/* ZMIANA: MenuButton zamiast zwykłego buttona */}
-          <div
-            onClick={() => setHostStep("MODES")}
-            style={{ alignSelf: "flex-start", marginBottom: "20px" }}
-          >
+          <div onClick={() => setHostStep("MODES")} style={{ alignSelf: "flex-start", marginBottom: "20px" }}>
             <MenuButton label="BACK" to="#" disabledLink />
           </div>
-
           <Genres onGenreSelect={handleHostSelectGenre} />
         </div>
       ) : (
@@ -231,47 +285,18 @@ export default function MultiplayerGame() {
   };
 
   return (
-    <div
-      className="master"
-      style={{
-        height: "100vh",
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <div
-        className="multiplayer-layout"
-        style={{
-          maxWidth:
-            isGameActive || roomState.status === "FINISHED"
-              ? "1400px"
-              : "800px",
-          justifyContent:
-            isGameActive || roomState.status === "FINISHED"
-              ? "flex-start"
-              : "center",
-        }}
-      >
-        {/* LEWA KOLUMNA (GRA / WYNIKI) */}
-        <div
-          className="game-column"
-          style={{
-            flex: isGameActive || roomState.status === "FINISHED" ? 3 : 1,
-          }}
-        >
+    <div className="master" style={{ height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div className="multiplayer-layout" style={{ 
+          maxWidth: isGameActive || roomState.status === "FINISHED" ? "1400px" : "800px",
+          justifyContent: isGameActive || roomState.status === "FINISHED" ? "flex-start" : "center" 
+        }}>
+        <div className="game-column" style={{ flex: isGameActive || roomState.status === "FINISHED" ? 3 : 1 }}>
           {renderLeftColumn()}
         </div>
 
-        {/* PRAWA KOLUMNA (CZAT) */}
         {(isGameActive || roomState.status === "FINISHED") && (
           <div className="chat-column">
-            <ChatWindow
-              roomId={roomId}
-              nickname={myNickname}
-              currentTrack={currentTrack}
-              roundStartTime={roomState.currentSongStart}
-            />
+            <ChatWindow roomId={roomId} nickname={myNickname} currentTrack={currentTrack} roundStartTime={roomState.currentSongStart} />
           </div>
         )}
       </div>

@@ -5,13 +5,13 @@ export default function Settings() {
   const [isOpen, setIsOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
-  // Wyciągamy globalne wartości głośności z Contextu
+  // Extract global volume values from Context
   const { volume, setVolume, isMuted, setIsMuted } = useVolume();
 
-  // Ref do przechowywania licznika czasu (naprawiony typ dla TypeScript)
+  // Ref for timer (TypeScript type fixed)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Funkcja obsługująca wejście myszki na obszar ustawień
+  // Handle mouse entering the settings area
   const handleMouseEnter = () => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
@@ -21,7 +21,7 @@ export default function Settings() {
     setIsHovered(true);
   };
 
-  // Funkcja obsługująca zjazd myszki - zamyka po 167ms
+  // Handle mouse leaving - closes after 167ms
   const handleMouseLeave = () => {
     setIsHovered(false);
     timerRef.current = setTimeout(() => {
@@ -38,11 +38,11 @@ export default function Settings() {
         top: '25px', 
         left: '25px', 
         zIndex: 9999,
-        paddingBottom: '20px' // Bufor bezpieczeństwa pod przyciskiem
+        paddingBottom: '20px' // Buffer zone under the button
       }}
     >
       
-      {/* PRZYCISK ZĘBATKI */}
+      {/* GEAR BUTTON */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
         style={{
@@ -61,7 +61,7 @@ export default function Settings() {
           transition: 'all 0.3s ease',
           transform: isOpen || isHovered ? 'rotate(90deg)' : 'rotate(0deg)',
         }}
-        title="Ustawienia"
+        title="Settings"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="3"></circle>
@@ -69,7 +69,7 @@ export default function Settings() {
         </svg>
       </button>
 
-      {/* OKNO USTAWIEŃ */}
+      {/* SETTINGS WINDOW */}
       {isOpen && (
         <div style={{
           position: 'absolute',
@@ -84,12 +84,12 @@ export default function Settings() {
           color: 'white',
           boxShadow: '0 15px 35px rgba(0,0,0,0.6)',
         }}>
-          <h3 style={{ margin: '0 0 15px 0', fontSize: '0.9rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>Ustawienia Gry</h3>
+          <h3 style={{ margin: '0 0 15px 0', fontSize: '0.9rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>Game Settings</h3>
           
-          {/* SUWAK GŁOŚNOŚCI */}
+          {/* VOLUME SLIDER */}
           <div style={{ marginBottom: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '0.8rem', opacity: 0.8 }}>
-              <span style={{display:'flex', alignItems:'center', gap:'5px'}}>🔊 Głośność</span>
+              <span style={{display:'flex', alignItems:'center', gap:'5px'}}>🔊 Volume</span>
               <span style={{fontWeight:'bold'}}>{isMuted ? 0 : volume}%</span>
             </div>
             <input 
@@ -105,7 +105,7 @@ export default function Settings() {
             />
           </div>
 
-          {/* PRZYCISK WYCISZENIA */}
+          {/* MUTE BUTTON */}
           <button 
             onClick={() => setIsMuted(!isMuted)}
             style={{
@@ -122,7 +122,7 @@ export default function Settings() {
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
             }}
           >
-            {isMuted ? <span>🔇WYŁĄCZ WYCISZENIE</span> : <span>🔊WYCISZ</span>}
+            {isMuted ? <span>🔇 UNMUTE</span> : <span>🔊 MUTE</span>}
           </button>
         </div>
       )}

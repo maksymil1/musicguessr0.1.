@@ -8,7 +8,7 @@ import "./Ranking.css";
 const LEVELS = [0.1, 0.5, 1, 3, 7, 15, 30];
 const POINTS_PER_LEVEL = [100, 80, 60, 40, 20, 10, 5];
 
-// --- ROZBUDOWANE LISTY ---
+// --- EXTENDED LISTS ---
 const GENRES = [
   "Pop", "Hip-Hop", "Rap", "Rock", "Alternative", "Electronic", 
   "Dance", "R&B", "Soul", "Metal", "Jazz", "Classical", 
@@ -31,7 +31,7 @@ export default function Solo() {
   
   // Setup state
   const [category, setCategory] = useState<"popular" | "artist" | "genre" | "years">("popular");
-  const [subValue, setSubValue] = useState(""); // Przechowuje wybrany gatunek/rok/artystę
+  const [subValue, setSubValue] = useState(""); // Stores selected genre/year/artist
 
   // Gameplay state
   const [currentAttempt, setCurrentAttempt] = useState(0);
@@ -101,9 +101,9 @@ export default function Solo() {
   };
 
   const fetchTrack = async () => {
-    // Walidacja przed startem
+    // Validation before start
     if ((category === "artist" || category === "genre" || category === "years") && !subValue) {
-        alert("Wybierz opcję (Artystę, Gatunek lub Rok) przed startem!");
+        alert("Please select an option (Artist, Genre, or Year) before starting!");
         return;
     }
 
@@ -112,7 +112,7 @@ export default function Solo() {
     setFeedback("");
     try {
       let searchTerm = "";
-      // Ulepszone zapytania
+      // Enhanced queries
       if (category === "popular") searchTerm = "top charts hits 2024";
       else if (category === "artist") searchTerm = subValue;
       else if (category === "genre") searchTerm = `best ${subValue} songs`;
@@ -132,7 +132,7 @@ export default function Solo() {
         available = available.filter((t: any) => t.artistName.toLowerCase().includes(subValue.toLowerCase()));
       }
 
-      if (available.length === 0) return alert("Brak utworów dla tego zapytania!");
+      if (available.length === 0) return alert("No tracks found for this query!");
 
       const track = available[Math.floor(Math.random() * available.length)];
 
@@ -149,7 +149,7 @@ export default function Solo() {
       setCurrentAttempt(0);
       setGuess("");
     } catch (e) {
-      setFeedback("Błąd połączenia.");
+      setFeedback("Connection error.");
     }
   };
 
@@ -170,7 +170,7 @@ export default function Solo() {
       setSuggestions([]);
       if (currentAttempt < LEVELS.length - 1) {
         setCurrentAttempt((prev) => prev + 1);
-        setFeedback("Źle! Czas zwiększony.");
+        setFeedback("Wrong! Time increased.");
       } else {
         setGameState("result");
         setFeedback("GAME OVER");
@@ -201,7 +201,7 @@ export default function Solo() {
         {gameState === "setup" ? (
           <div className="setup-section" style={{ flex: 1, display: "flex", flexDirection: "column" }}>
              
-             {/* 1. KATEGORIE - STYLEM ZAKŁADEK */}
+             {/* 1. CATEGORIES - TAB STYLE */}
              <div className="category-tabs">
                 <button onClick={() => { setCategory("popular"); setSubValue(""); }} className={category === "popular" ? "tab-active" : "tab-off"}>TOP HITS</button>
                 <button onClick={() => { setCategory("artist"); setSubValue(""); }} className={category === "artist" ? "tab-active" : "tab-off"}>ARTIST</button>
@@ -209,16 +209,16 @@ export default function Solo() {
                 <button onClick={() => { setCategory("years"); setSubValue(""); }} className={category === "years" ? "tab-active" : "tab-off"}>YEARS</button>
              </div>
 
-             {/* 2. WYBÓR SZCZEGÓŁÓW */}
+             {/* 2. DETAIL SELECTION */}
              <div style={{ flex: 1, overflowY: "auto", marginBottom: "20px", paddingRight: "5px" }} className="custom-scrollbar">
                 
-                {/* ARTYSTA - Input Szklany */}
+                {/* ARTIST - Glass Input */}
                 {category === "artist" && (
                     <div className="search-bar-container">
                         <span className="search-icon">🎤</span>
                         <input 
                             type="text" 
-                            placeholder="Wpisz np. The Weeknd..." 
+                            placeholder="Type e.g. The Weeknd..." 
                             value={subValue} 
                             onChange={(e) => setSubValue(e.target.value)} 
                             className="search-input"
@@ -226,7 +226,7 @@ export default function Solo() {
                     </div>
                 )}
 
-                {/* GATUNKI - Kafelki */}
+                {/* GENRES - Chips */}
                 {category === "genre" && (
                     <div className="chips-grid">
                         {GENRES.map(g => (
@@ -241,7 +241,7 @@ export default function Solo() {
                     </div>
                 )}
 
-                {/* LATA - Kafelki */}
+                {/* YEARS - Chips */}
                 {category === "years" && (
                     <div className="chips-grid">
                         {DECADES.map(d => (
@@ -259,7 +259,7 @@ export default function Solo() {
 
                 {category === "popular" && (
                     <div style={{textAlign: "center", padding: "20px", color: "#aaa", fontStyle: "italic"}}>
-                        Tryb mieszany. Losowe hity z list przebojów.
+                        Mixed mode. Random hits from the charts.
                     </div>
                 )}
              </div>
@@ -277,7 +277,7 @@ export default function Solo() {
             <div className="history-list" style={{ marginBottom: "20px" }}>
               {[...Array(LEVELS.length)].map((_, idx) => (
                 <div key={idx} className="history-item" style={{ height: "35px", border: "1px solid #333", marginBottom: "5px", display: "flex", alignItems: "center", padding: "0 10px", fontSize: "0.8rem", background: attemptsHistory[idx] ? "rgba(255, 71, 87, 0.15)" : "transparent", color: attemptsHistory[idx] ? "#ff4757" : "#555" }}>
-                  {attemptsHistory[idx] || (idx === currentAttempt ? "TWOJA PRÓBA..." : "")}
+                  {attemptsHistory[idx] || (idx === currentAttempt ? "YOUR ATTEMPT..." : "")}
                 </div>
               ))}
             </div>
@@ -285,7 +285,7 @@ export default function Solo() {
             <button onClick={playPreview} className="play-btn-large">{isPlaying ? "..." : "▶"}</button>
             
             <div style={{ position: "relative", marginTop: "20px" }}>
-              <input type="text" placeholder="Znasz tytuł?" value={guess} onChange={(e) => setGuess(e.target.value)} autoComplete="off" style={inputStyle} onKeyDown={(e) => e.key === "Enter" && handleGuess()} />
+              <input type="text" placeholder="Know the title?" value={guess} onChange={(e) => setGuess(e.target.value)} autoComplete="off" style={inputStyle} onKeyDown={(e) => e.key === "Enter" && handleGuess()} />
               {suggestions.length > 0 && (
                 <div className="suggestions-box">
                   {suggestions.map((s: any) => (
@@ -303,22 +303,22 @@ export default function Solo() {
         ) : (
           <div className="result-container animate-fade-in">
             <h2 style={{ color: feedback === "CORRECT!" ? "#4ade80" : "#ff4757", fontSize: "2rem" }}>{feedback}</h2>
-            {feedback === "CORRECT!" && <p style={{color: '#ffd700', fontWeight: 'bold', fontSize: "1.5rem"}}>+{POINTS_PER_LEVEL[currentAttempt]} PKT</p>}
+            {feedback === "CORRECT!" && <p style={{color: '#ffd700', fontWeight: 'bold', fontSize: "1.5rem"}}>+{POINTS_PER_LEVEL[currentAttempt]} PTS</p>}
             
-            <img src={targetTrack.cover} style={{ width: "200px", borderRadius: "15px", margin: "20px 0", boxShadow: "0 0 30px rgba(74,222,128,0.2)" }} />
+            <img src={targetTrack.cover} style={{ width: "200px", borderRadius: "15px", margin: "20px 0", boxShadow: "0 0 30px rgba(74,222,128,0.2)" }} alt="Track cover" />
             
             <p style={{ fontSize: "1.5rem", marginBottom: "5px" }}><strong>{targetTrack.name}</strong></p>
             <p style={{ color: "#aaa", fontSize: "1.1rem" }}>{targetTrack.artist}</p>
             
-            <button onClick={() => fetchTrack()} className="menu-button" style={{ background: "#4ade80", color: "#000", marginTop: "30px", width: "100%" }}>GRAJ DALEJ</button>
+            <button onClick={() => fetchTrack()} className="menu-button" style={{ background: "#4ade80", color: "#000", marginTop: "30px", width: "100%" }}>KEEP PLAYING</button>
           </div>
         )}
         
         <div style={{ paddingTop: "20px", alignSelf: "center" }}><MenuButton label="EXIT" to="/" external={false} /></div>
       </div>
 
-       <style>{`
-        /* STYLE ZAKŁADEK I INPUTÓW (TO SAMO CO W MUSICPAGE) */
+      <style>{`
+        /* TAB AND INPUT STYLES */
         .category-tabs {
           display: grid;
           grid-template-columns: repeat(4, 1fr);
@@ -338,7 +338,7 @@ export default function Solo() {
         .chip-selected { background: #4ade80 !important; color: black !important; border-color: #4ade80 !important; font-weight: bold; }
         .chip-selected-yellow { background: #facc15 !important; color: black !important; border-color: #facc15 !important; font-weight: bold; }
 
-        .search-bar-container { display: flex; alignItems: center; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 12px; padding: 10px; transition: all 0.3s ease; }
+        .search-bar-container { display: flex; align-items: center; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 12px; padding: 10px; transition: all 0.3s ease; }
         .search-bar-container:focus-within { border-color: #4ade80; box-shadow: 0 0 15px rgba(74, 222, 128, 0.2); background: rgba(0, 0, 0, 0.6); }
         .search-input { flex: 1; background: transparent; border: none; color: white; font-size: 1rem; outline: none; margin-left: 10px; }
 
